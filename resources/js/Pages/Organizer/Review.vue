@@ -89,6 +89,13 @@ function deleteExpense(ex) {
     router.delete(`/events/${props.event.slug}/expenses/${ex.id}`, { preserveScroll: true });
 }
 
+const expanded = ref(new Set());
+function toggleVoucher(id) {
+    const next = new Set(expanded.value);
+    next.has(id) ? next.delete(id) : next.add(id);
+    expanded.value = next;
+}
+
 function closeEvent() {
     router.post(`/events/${props.event.slug}/close`, {}, { preserveScroll: true });
 }
@@ -193,21 +200,56 @@ function reopenEvent() {
             </p>
 
             <ul v-else class="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
-                <li v-for="p in participants" :key="p.id" class="flex items-center justify-between px-4 py-3">
-                    <div class="flex items-center gap-2">
-                        <span :class="['rounded-full px-2.5 py-1 text-xs font-medium', (statusBadge[p.status] ?? statusBadge.pending).cls]">
-                            {{ (statusBadge[p.status] ?? statusBadge.pending).label }}
-                        </span>
-                        <span class="font-medium">{{ p.name }}</span>
+                <li v-for="p in participants" :key="p.id" class="px-4 py-3">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex min-w-0 items-center gap-2">
+                            <span :class="['shrink-0 rounded-full px-2.5 py-1 text-xs font-medium', (statusBadge[p.status] ?? statusBadge.pending).cls]">
+                                {{ (statusBadge[p.status] ?? statusBadge.pending).label }}
+                            </span>
+                            <span class="truncate font-medium">{{ p.name }}</span>
+                        </div>
+                        <div class="flex shrink-0 items-center gap-3">
+                            <button v-if="p.receipt && p.receipt.image_url" type="button" @click="toggleVoucher(p.id)"
+                                class="text-sm font-medium text-teal-700">
+                                {{ expanded.has(p.id) ? 'Ocultar' : 'Ver voucher' }}
+                            </button>
+                            <a v-if="p.status !== 'paid'" :href="participantReminderUrl(p)" target="_blank" rel="noopener"
+                                class="text-sm font-medium text-[#1da851]">
+                                Recordar
+                            </a>
+                            <button v-if="p.status !== 'paid'" type="button" @click="markCash(p)" class="text-sm font-medium text-teal-700">
+                                Efectivo
+                            </button>
+                        </div>
                     </div>
-                    <div v-if="p.status !== 'paid'" class="flex items-center gap-3">
-                        <a :href="participantReminderUrl(p)" target="_blank" rel="noopener"
-                            class="text-sm font-medium text-[#1da851]">
-                            Recordar
-                        </a>
-                        <button type="button" @click="markCash(p)" class="text-sm font-medium text-teal-700">
-                            Efectivo
-                        </button>
+
+                    <!-- Inspect the participant's uploaded voucher -->
+                    <div v-if="expanded.has(p.id) && p.receipt" class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <img v-if="p.receipt.image_url" :src="p.receipt.image_url" :alt="`Voucher de ${p.name}`"
+                            class="max-h-72 w-full rounded-lg bg-white object-contain" />
+                        <dl class="mt-3 space-y-1 text-sm">
+                            <div class="flex justify-between">
+                                <dt class="text-slate-500">Monto leído</dt>
+                                <dd class="font-medium">
+                                    {{ p.receipt.amount_cents != null ? 'S/ ' + soles(p.receipt.amount_cents) : '—' }}
+                                    <span class="text-slate-400">(esperado S/ {{ soles(event.share_cents) }})</span>
+                                </dd>
+                            </div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Fecha</dt><dd class="font-medium">{{ p.receipt.date ?? '—' }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">A</dt><dd class="font-medium">{{ p.receipt.recipient ?? '—' }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Método</dt><dd class="font-medium">{{ methodLabels[p.receipt.method] ?? p.receipt.method ?? '—' }}</dd></div>
+                            <div v-if="p.receipt.confidence != null" class="flex justify-between"><dt class="text-slate-500">Confianza IA</dt><dd class="font-medium">{{ Math.round(p.receipt.confidence * 100) }}%</dd></div>
+                        </dl>
+                        <div class="mt-3 flex gap-2">
+                            <button type="button" @click="approve(p.receipt)"
+                                class="flex-1 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white active:scale-[0.99]">
+                                Confirmar pago
+                            </button>
+                            <button type="button" @click="reject(p.receipt)"
+                                class="flex-1 rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 active:scale-[0.99]">
+                                Rechazar
+                            </button>
+                        </div>
                     </div>
                 </li>
             </ul>

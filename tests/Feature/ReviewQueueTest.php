@@ -78,6 +78,34 @@ class ReviewQueueTest extends TestCase
                 ->has('event.pay_deadline'));
     }
 
+    public function test_participants_payload_includes_their_uploaded_voucher(): void
+    {
+        $owner = User::factory()->create();
+        $event = Event::factory()->create(['user_id' => $owner->id]);
+        $participant = Participant::factory()->for($event)->create(['name' => 'José']);
+        $receipt = Receipt::factory()->for($event)->for($participant)
+            ->create(['status' => 'validated', 's3_key' => 'events/1/receipts/v.jpg']);
+
+        $this->actingAs($owner)
+            ->get("/events/{$event->slug}/review")
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('participants.0.name', 'José')
+                ->where('participants.0.receipt.id', $receipt->id)
+                ->where('participants.0.receipt.image_url', route('organizer.receipts.image', [$event, $receipt])));
+    }
+
+    public function test_cash_payment_has_no_image_url(): void
+    {
+        $owner = User::factory()->create();
+        $event = Event::factory()->create(['user_id' => $owner->id]);
+        $participant = Participant::factory()->for($event)->create();
+        Receipt::factory()->for($event)->for($participant)->create(['status' => 'cash', 's3_key' => null]);
+
+        $this->actingAs($owner)
+            ->get("/events/{$event->slug}/review")
+            ->assertInertia(fn (Assert $page) => $page->where('participants.0.receipt.image_url', null));
+    }
+
     public function test_organizer_can_approve_a_receipt(): void
     {
         [$owner, $event, $receipt] = $this->reviewableReceipt();

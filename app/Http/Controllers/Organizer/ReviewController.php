@@ -32,7 +32,7 @@ class ReviewController extends Controller
             'expenses' => fn ($q) => $q->latest('id'),
         ]);
 
-        $participants = $event->participants->map(function (Participant $p) {
+        $participants = $event->participants->map(function (Participant $p) use ($event) {
             $paid = $p->receipts->whereIn('status', self::PAID)->isNotEmpty();
             $latest = $p->receipts->first();
 
@@ -44,7 +44,14 @@ class ReviewController extends Controller
                     default => 'pending',
                 } : 'pending');
 
-            return ['id' => $p->id, 'name' => $p->name, 'status' => $status];
+            return [
+                'id' => $p->id,
+                'name' => $p->name,
+                'status' => $status,
+                // Latest uploaded voucher, so the organizer can inspect any
+                // participant's payment — not only those in the review queue.
+                'receipt' => $latest ? $this->receiptPayload($event, $latest) : null,
+            ];
         })->values();
 
         $paidCount = $participants->where('status', 'paid')->count();
@@ -171,7 +178,7 @@ class ReviewController extends Controller
             'recipient' => $receipt->extracted_recipient,
             'confidence' => $receipt->confidence,
             'explanation' => $receipt->ai_explanation,
-            'image_url' => route('organizer.receipts.image', [$event, $receipt]),
+            'image_url' => $receipt->s3_key ? route('organizer.receipts.image', [$event, $receipt]) : null,
             'created_at' => $receipt->created_at->toIso8601String(),
         ];
     }
