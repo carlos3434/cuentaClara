@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 
-const h = vi.hoisted(() => ({ post: vi.fn(), del: vi.fn(), formPost: vi.fn() }));
+const h = vi.hoisted(() => ({ post: vi.fn(), del: vi.fn(), formPost: vi.fn(), get: vi.fn() }));
 
 vi.mock('@inertiajs/vue3', () => ({
     Head: { template: '<div><slot /></div>' },
@@ -9,7 +9,13 @@ vi.mock('@inertiajs/vue3', () => ({
     useForm: (data) => ({ ...data, errors: {}, processing: false, post: h.formPost, reset: vi.fn() }),
 }));
 
+vi.mock('axios', () => ({ default: { get: h.get } }));
+
 import Review from './Review.vue';
+
+function participantsPage(data, next_page = null, total = data.length) {
+    return { data, next_page, total };
+}
 
 function makeProps(overrides = {}) {
     return {
@@ -24,10 +30,10 @@ function makeProps(overrides = {}) {
             amount_cents: 3000, date: '2026-06-24', method: 'yape', recipient: 'Caro',
             confidence: 0.72, explanation: '', image_url: 'http://x/img/5', created_at: '2026-06-24T00:00:00Z',
         }],
-        participants: [
+        participants: participantsPage([
             { id: 1, name: 'Ana', status: 'paid', receipt: { id: 9, image_url: 'http://x/img/9', amount_cents: 4000, date: '2026-06-24', method: 'yape', recipient: 'Caro', confidence: 0.95, status: 'validated', reason_code: null } },
             { id: 2, name: 'Beto', status: 'pending', receipt: null },
-        ],
+        ], null, 2),
         expenses: [{ id: 3, note: 'Cancha', image_url: 'http://x/exp/3', created_at: '2026-06-24T00:00:00Z' }],
         share_url: 'http://x/events/abc/created',
         ...overrides,
@@ -38,6 +44,7 @@ beforeEach(() => {
     h.post.mockClear();
     h.del.mockClear();
     h.formPost.mockClear();
+    h.get.mockReset();
     globalThis.URL.createObjectURL = vi.fn(() => 'blob:preview');
 });
 
@@ -84,10 +91,10 @@ describe('Organizer/Review', () => {
     it('shows "Validando" for an upload awaiting validation', () => {
         const w = mount(Review, {
             props: makeProps({
-                participants: [{
+                participants: participantsPage([{
                     id: 7, name: 'Nico', status: 'submitted',
                     receipt: { id: 8, image_url: 'http://x/img/8', amount_cents: 4000, date: '2026-06-24', method: 'yape', recipient: 'Caro', confidence: 0.95, status: 'submitted', reason_code: null },
-                }],
+                }], null, 1),
             }),
         });
 
@@ -162,5 +169,27 @@ describe('Organizer/Review', () => {
         await w.find('form').trigger('submit.prevent');
 
         expect(h.formPost).toHaveBeenCalled();
+    });
+
+    it('loads more participants on demand', async () => {
+        h.get.mockResolvedValue({ data: participantsPage([{ id: 99, name: 'Zoila', status: 'pending', receipt: null }], null, 3) });
+
+        const w = mount(Review, {
+            props: makeProps({
+                participants: participantsPage(
+                    [{ id: 1, name: 'Ana', status: 'pending', receipt: null }],
+                    2,
+                    3,
+                ),
+            }),
+        });
+        expect(w.text()).toContain('Ver más participantes');
+
+        await w.findAll('button').find((b) => b.text().includes('Ver más participantes')).trigger('click');
+        await flushPromises();
+
+        expect(h.get).toHaveBeenCalledWith('/events/abc/participants/more', { params: { page: 2 } });
+        expect(w.text()).toContain('Zoila');
+        expect(w.text()).not.toContain('Ver más participantes');
     });
 });

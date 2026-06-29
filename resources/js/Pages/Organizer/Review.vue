@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import axios from 'axios';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Icon from '../../Components/Icon.vue';
 
@@ -7,10 +8,29 @@ const props = defineProps({
     event: Object,
     summary: Object,
     review: { type: Array, default: () => [] },
-    participants: { type: Array, default: () => [] },
+    participants: { type: Object, default: () => ({ data: [], next_page: null, total: 0 }) },
     expenses: { type: Array, default: () => [] },
     share_url: String,
 });
+
+// Recent participants come from the first page; older ones load on demand.
+const participantItems = ref([...props.participants.data]);
+const participantsNextPage = ref(props.participants.next_page);
+const loadingParticipants = ref(false);
+
+async function loadMoreParticipants() {
+    if (!participantsNextPage.value || loadingParticipants.value) return;
+    loadingParticipants.value = true;
+    try {
+        const { data } = await axios.get(`/events/${props.event.slug}/participants/more`, {
+            params: { page: participantsNextPage.value },
+        });
+        participantItems.value.push(...data.data);
+        participantsNextPage.value = data.next_page;
+    } finally {
+        loadingParticipants.value = false;
+    }
+}
 
 const methodLabels = { yape: 'Yape', plin: 'Plin', bank_transfer: 'Transferencia' };
 const reasonLabels = {
@@ -199,15 +219,15 @@ function reopenEvent() {
         <!-- Participants -->
         <section class="mt-6">
             <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Participantes ({{ participants.length }})
+                Participantes ({{ participants.total }})
             </h2>
 
-            <p v-if="participants.length === 0" class="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            <p v-if="participantItems.length === 0" class="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
                 Nadie ha subido su voucher todavía.
             </p>
 
             <ul v-else class="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
-                <li v-for="p in participants" :key="p.id" class="px-4 py-3">
+                <li v-for="p in participantItems" :key="p.id" class="px-4 py-3">
                     <div class="flex items-center gap-2">
                         <span :class="['inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium', badgeOf(p.status).cls]">
                             <Icon :name="badgeOf(p.status).icon" class="h-3.5 w-3.5" />
@@ -264,6 +284,11 @@ function reopenEvent() {
                     </div>
                 </li>
             </ul>
+
+            <button v-if="participantsNextPage" type="button" @click="loadMoreParticipants" :disabled="loadingParticipants"
+                class="mt-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-600 active:scale-[0.99] disabled:opacity-60">
+                {{ loadingParticipants ? 'Cargando…' : 'Ver más participantes' }}
+            </button>
         </section>
 
         <!-- Organizer's own expense receipt -->

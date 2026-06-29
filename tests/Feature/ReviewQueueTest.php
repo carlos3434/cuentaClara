@@ -57,7 +57,8 @@ class ReviewQueueTest extends TestCase
                 ->where('summary.pending_cents', 40000)     // 48000 − 8000
                 ->where('summary.review_count', 1)
                 ->has('review', 1)
-                ->has('participants', 3));
+                ->where('participants.total', 3)
+                ->has('participants.data', 3));
     }
 
     public function test_review_page_exposes_reminder_fields(): void
@@ -89,9 +90,9 @@ class ReviewQueueTest extends TestCase
         $this->actingAs($owner)
             ->get("/events/{$event->slug}/review")
             ->assertInertia(fn (Assert $page) => $page
-                ->where('participants.0.name', 'José')
-                ->where('participants.0.receipt.id', $receipt->id)
-                ->where('participants.0.receipt.image_url', route('organizer.receipts.image', [$event, $receipt])));
+                ->where('participants.data.0.name', 'José')
+                ->where('participants.data.0.receipt.id', $receipt->id)
+                ->where('participants.data.0.receipt.image_url', route('organizer.receipts.image', [$event, $receipt])));
     }
 
     public function test_cash_payment_has_no_image_url(): void
@@ -103,7 +104,7 @@ class ReviewQueueTest extends TestCase
 
         $this->actingAs($owner)
             ->get("/events/{$event->slug}/review")
-            ->assertInertia(fn (Assert $page) => $page->where('participants.0.receipt.image_url', null));
+            ->assertInertia(fn (Assert $page) => $page->where('participants.data.0.receipt.image_url', null));
     }
 
     public function test_an_upload_awaiting_validation_shows_as_submitted(): void
@@ -116,8 +117,38 @@ class ReviewQueueTest extends TestCase
         $this->actingAs($owner)
             ->get("/events/{$event->slug}/review")
             ->assertInertia(fn (Assert $page) => $page
-                ->where('participants.0.status', 'submitted')   // not 'pending'
+                ->where('participants.data.0.status', 'submitted')   // not 'pending'
                 ->where('summary.review_count', 0));             // not in the AI queue
+    }
+
+    public function test_participants_paginate_and_load_more_returns_the_rest(): void
+    {
+        $owner = User::factory()->create();
+        $event = Event::factory()->create(['user_id' => $owner->id]);
+        Participant::factory()->count(12)->for($event)->create();
+
+        $this->actingAs($owner)
+            ->get("/events/{$event->slug}/review")
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('participants.data', 10)
+                ->where('participants.total', 12)
+                ->where('participants.next_page', 2));
+
+        $this->actingAs($owner)
+            ->getJson("/events/{$event->slug}/participants/more?page=2")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('next_page', null)
+            ->assertJsonPath('total', 12);
+    }
+
+    public function test_participants_more_requires_ownership(): void
+    {
+        $event = Event::factory()->create(['user_id' => User::factory()->create()->id]);
+
+        $this->actingAs(User::factory()->create())
+            ->getJson("/events/{$event->slug}/participants/more")
+            ->assertForbidden();
     }
 
     public function test_organizer_can_approve_a_receipt(): void

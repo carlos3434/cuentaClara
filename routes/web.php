@@ -41,6 +41,7 @@ Route::middleware('auth')->group(function () {
 
         // Review hub + actions
         Route::get('/events/{event}/review', [ReviewController::class, 'show'])->name('events.review');
+        Route::get('/events/{event}/participants/more', [ReviewController::class, 'participantsMore'])->name('events.participants.more');
         Route::get('/events/{event}/receipts/{receipt}/image', [ReviewController::class, 'image'])->name('receipts.image');
         Route::post('/events/{event}/receipts/{receipt}/approve', [ReviewController::class, 'approve'])->name('receipts.approve');
         Route::post('/events/{event}/receipts/{receipt}/reject', [ReviewController::class, 'reject'])->name('receipts.reject');

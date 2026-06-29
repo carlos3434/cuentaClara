@@ -10,6 +10,7 @@ use App\Models\Event;
 use App\Models\Participant;
 use App\Models\Receipt;
 use App\Services\Storage\ReceiptStorage;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,6 +19,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ReviewController extends Controller
 {
     private const PAID = [ReceiptStatus::Validated, ReceiptStatus::Cash];
+    private const PER_PAGE = 10;
 
     /**
      * Per-event review hub: the needs-review queue + participant roster +
@@ -28,36 +30,12 @@ class ReviewController extends Controller
         $this->authorizeEvent($event);
 
         $event->load([
-            'participants.receipts' => fn ($q) => $q->latest('id'),
             'receipts' => fn ($q) => $q->where('status', ReceiptStatus::NeedsReview->value)->latest('id'),
             'receipts.participant',
             'expenses' => fn ($q) => $q->latest('id'),
         ]);
 
-        $participants = $event->participants->map(function (Participant $p) use ($event) {
-            $paid = $p->receipts->whereIn('status', self::PAID)->isNotEmpty();
-            $latest = $p->receipts->first();
-
-            $status = $paid
-                ? 'paid'
-                : ($latest ? match ($latest->status) {
-                    ReceiptStatus::NeedsReview => 'review',
-                    ReceiptStatus::Rejected => 'rejected',
-                    ReceiptStatus::Submitted => 'submitted', // subió, esperando validación de IA
-                    default => 'pending',
-                } : 'pending');
-
-            return [
-                'id' => $p->id,
-                'name' => $p->name,
-                'status' => $status,
-                // Latest uploaded voucher, so the organizer can inspect any
-                // participant's payment — not only those in the review queue.
-                'receipt' => $latest ? $this->receiptPayload($event, $latest) : null,
-            ];
-        })->values();
-
-        $paidCount = $participants->where('status', 'paid')->count();
+        $paidCount = $this->paidCount($event);
         $collected = $paidCount * $event->share_cents;
 
         $review = $event->receipts
@@ -85,7 +63,7 @@ class ReviewController extends Controller
                 'review_count' => $review->count(),
             ],
             'review' => $review,
-            'participants' => $participants,
+            'participants' => $this->participantsPage($event),
             'expenses' => $event->expenses->map(fn ($e) => [
                 'id' => $e->id,
                 'note' => $e->note,
@@ -94,6 +72,16 @@ class ReviewController extends Controller
             ])->values(),
             'share_url' => route('organizer.events.created', $event),
         ]);
+    }
+
+    /**
+     * Next page of participants for the review hub's "Ver más" (JSON, appended).
+     */
+    public function participantsMore(Event $event): JsonResponse
+    {
+        $this->authorizeEvent($event);
+
+        return response()->json($this->participantsPage($event));
     }
 
     /**
@@ -161,6 +149,59 @@ class ReviewController extends Controller
     {
         $this->authorizeEvent($event);
         abort_unless($receipt->event_id === $event->id, 404);
+    }
+
+    private function paidCount(Event $event): int
+    {
+        return $event->participants()
+            ->whereHas('receipts', fn ($q) => $q->whereIn('status', [ReceiptStatus::Validated->value, ReceiptStatus::Cash->value]))
+            ->count();
+    }
+
+    /**
+     * One page of participants (newest first), shaped for "Ver más".
+     *
+     * @return array{data: array<int, array<string, mixed>>, next_page: ?int, total: int}
+     */
+    private function participantsPage(Event $event): array
+    {
+        $paginator = $event->participants()
+            ->with(['receipts' => fn ($q) => $q->latest('id')])
+            ->latest('id')
+            ->paginate(self::PER_PAGE);
+
+        return [
+            'data' => collect($paginator->items())->map(fn (Participant $p) => $this->presentParticipant($event, $p))->all(),
+            'next_page' => $paginator->hasMorePages() ? $paginator->currentPage() + 1 : null,
+            'total' => $paginator->total(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function presentParticipant(Event $event, Participant $p): array
+    {
+        $paid = $p->receipts->whereIn('status', self::PAID)->isNotEmpty();
+        $latest = $p->receipts->first();
+
+        $status = $paid
+            ? 'paid'
+            : ($latest ? match ($latest->status) {
+                ReceiptStatus::NeedsReview => 'review',
+                ReceiptStatus::Rejected => 'rejected',
+                ReceiptStatus::Submitted => 'submitted', // subió, esperando validación de IA
+                default => 'pending',
+            } : 'pending');
+
+        return [
+            'id' => $p->id,
+            'name' => $p->name,
+            'status' => $status,
+            // Latest uploaded voucher, so the organizer can inspect any
+            // participant's payment — not only those in the review queue.
+            'receipt' => $latest ? $this->receiptPayload($event, $latest) : null,
+        ];
     }
 
     /**

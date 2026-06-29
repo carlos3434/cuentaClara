@@ -60,7 +60,7 @@ class CollectionJourneyTest extends TestCase
                 ->where('summary.paid_count', 1)
                 ->where('summary.collected_cents', 4000)
                 ->where('summary.pending_cents', 44000)
-                ->where('participants.0.status', 'paid'));
+                ->where('participants.data.0.status', 'paid'));
     }
 
     // --- Exception path: AI flags → organizer reviews → approves ----------
