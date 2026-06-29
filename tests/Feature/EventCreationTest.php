@@ -45,6 +45,20 @@ class EventCreationTest extends TestCase
         $response->assertRedirect(route('organizer.events.created', $event));
     }
 
+    public function test_owner_sees_the_share_page_after_creation(): void
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->create(['user_id' => $user->id]);
+
+        $this->actingAs($user)
+            ->get(route('organizer.events.created', $event))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Events/Created')
+                ->where('public_url', route('public.events.show', $event))
+                ->has('event.share_cents'));
+    }
+
     public function test_organizer_can_attach_an_expense_receipt_at_creation(): void
     {
         \Illuminate\Support\Facades\Storage::fake(config('cuentaclara.receipts_disk'));

@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Event;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -43,6 +44,14 @@ class EventTest extends TestCase
     public function test_route_key_is_the_slug(): void
     {
         $this->assertSame('slug', (new Event())->getRouteKeyName());
+    }
+
+    public function test_belongs_to_the_organizer(): void
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->create(['user_id' => $user->id]);
+
+        $this->assertTrue($event->user->is($user));
     }
 
     public function test_casts_money_dates_and_methods(): void

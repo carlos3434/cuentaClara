@@ -49,4 +49,4 @@ jobs:
           php artisan key:generate
 
       - name: Run tests with coverage
-        run: php artisan test --coverage
+        run: php artisan test --coverage --min=90
