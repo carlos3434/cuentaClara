@@ -13,82 +13,16 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
-use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 
+/**
+ * Feature-level coverage of the validation JOB and its dispatch. The rule
+ * engine itself is unit-tested in tests/Unit/ReceiptRuleEngineTest.
+ */
 class ValidateReceiptTest extends TestCase
 {
     use RefreshDatabase;
-
-    // --- Rule engine (the deterministic core) ---------------------------
-
-    #[DataProvider('verdictCases')]
-    public function test_rule_engine_decides_verdict(
-        int $shareCents,
-        int $totalCents,
-        int $headcount,
-        ?int $amountCents,
-        bool $isReceipt,
-        float $confidence,
-        string $expectedVerdict,
-        ?string $expectedReason,
-    ): void {
-        $event = Event::factory()->make([
-            'share_cents' => $shareCents,
-            'total_cents' => $totalCents,
-            'headcount' => $headcount,
-        ]);
-
-        $extraction = new ReceiptExtraction(
-            isReceipt: $isReceipt,
-            amountCents: $amountCents,
-            currency: 'PEN',
-            date: '2026-06-24',
-            method: 'yape',
-            recipient: 'Caro',
-            confidence: $confidence,
-            explanation: '',
-        );
-
-        $decision = (new ReceiptRuleEngine())->decide($event, $extraction);
-
-        $this->assertSame($expectedVerdict, $decision['verdict']);
-        $this->assertSame($expectedReason, $decision['reason_code']);
-    }
-
-    public static function verdictCases(): array
-    {
-        // share 4000, total 48000, headcount 12 → remainder 0
-        return [
-            'exact match, high conf → validated' => [4000, 48000, 12, 4000, true, 0.95, 'validated', null],
-            'underpaid → needs_review' => [4000, 48000, 12, 3000, true, 0.95, 'needs_review', 'amount_mismatch'],
-            'overpaid → needs_review' => [4000, 48000, 12, 5000, true, 0.95, 'needs_review', 'amount_mismatch'],
-            'low confidence → needs_review' => [4000, 48000, 12, 4000, true, 0.50, 'needs_review', 'low_confidence'],
-            'not a receipt → needs_review' => [4000, 48000, 12, 4000, false, 0.99, 'needs_review', 'not_a_receipt'],
-            'unreadable amount → needs_review' => [4000, 48000, 12, null, true, 0.99, 'needs_review', 'amount_unreadable'],
-        ];
-    }
-
-    public function test_rule_engine_allows_rounding_remainder(): void
-    {
-        // 100 / 3 → share 33 (cents-level: total 100, share 33, remainder 1)
-        $event = Event::factory()->make([
-            'share_cents' => 33,
-            'total_cents' => 100,
-            'headcount' => 3,
-        ]);
-
-        $engine = new ReceiptRuleEngine();
-
-        $atShare = $this->extractionWithAmount(33);
-        $atSharePlusRemainder = $this->extractionWithAmount(34);
-        $overRemainder = $this->extractionWithAmount(35);
-
-        $this->assertSame('validated', $engine->decide($event, $atShare)['verdict']);
-        $this->assertSame('validated', $engine->decide($event, $atSharePlusRemainder)['verdict']);
-        $this->assertSame('needs_review', $engine->decide($event, $overRemainder)['verdict']);
-    }
 
     // --- Job ------------------------------------------------------------
 
