@@ -32,6 +32,13 @@ class DemoSeeder extends Seeder
             ['name' => 'Caro (demo)', 'password' => 'password'],
         );
 
+        // Admin account to explore the platform panel.
+        // Login: admin@cuentaclara.test / password
+        User::updateOrCreate(
+            ['email' => 'admin@cuentaclara.test'],
+            ['name' => 'Admin (demo)', 'password' => 'password', 'role' => \App\Enums\UserRole::Admin],
+        );
+
         $event = Event::create([
             'user_id' => $user->id,
             'slug' => Event::generateSlug(),

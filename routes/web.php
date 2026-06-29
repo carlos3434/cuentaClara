@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\SettingController as AdminSettingController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Organizer\EventController as OrganizerEventController;
@@ -52,6 +55,17 @@ Route::middleware('auth')->group(function () {
         Route::get('/events/{event}/expenses/{expense}/image', [ExpenseController::class, 'image'])->name('expenses.image');
         Route::delete('/events/{event}/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
     });
+});
+
+/*
+ * Admin area (platform administration). Requires an authenticated admin.
+ */
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+    Route::post('/settings', [AdminSettingController::class, 'update'])->name('settings.update');
+    Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
+    Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
+    Route::post('/users/{user}/toggle', [AdminUserController::class, 'toggle'])->name('users.toggle');
 });
 
 /*

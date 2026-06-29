@@ -10,6 +10,7 @@ const props = defineProps({
 
 const page = usePage();
 const userName = computed(() => page.props.auth?.user?.name ?? null);
+const isAdmin = computed(() => page.props.auth?.user?.is_admin ?? false);
 
 // Recent events come from the first page; older ones load on demand.
 const items = ref([...props.events.data]);
@@ -65,9 +66,12 @@ function logout() {
     <main class="mx-auto flex min-h-full max-w-md flex-col px-4 pb-28 pt-6">
         <div class="mb-4 flex items-center justify-between">
             <p class="text-sm font-semibold text-teal-700">CuentaClara</p>
-            <button v-if="userName" type="button" @click="logout" class="text-sm font-medium text-slate-500">
-                Salir
-            </button>
+            <div class="flex items-center gap-4">
+                <Link v-if="isAdmin" href="/admin" class="text-sm font-medium text-slate-500">Admin</Link>
+                <button v-if="userName" type="button" @click="logout" class="text-sm font-medium text-slate-500">
+                    Salir
+                </button>
+            </div>
         </div>
 
         <header class="mb-6">

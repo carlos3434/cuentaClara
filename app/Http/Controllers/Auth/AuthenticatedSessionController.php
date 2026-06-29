@@ -30,9 +30,18 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
+        // Deactivated accounts keep their data but cannot sign in.
+        if (! $request->user()->is_active) {
+            Auth::guard('web')->logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'Tu cuenta está desactivada. Contacta al administrador.',
+            ]);
+        }
+
         $request->session()->regenerate();
 
-        return redirect()->intended('/events');
+        return redirect()->intended($request->user()->isAdmin() ? '/admin' : '/events');
     }
 
     public function destroy(Request $request): RedirectResponse

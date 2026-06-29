@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Public\Concerns\ResolvesParticipant;
 use App\Jobs\ValidateReceiptJob;
 use App\Models\Event;
+use App\Models\Setting;
 use App\Services\Storage\ReceiptStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -75,8 +76,10 @@ class ReceiptController extends Controller
 
         // In 'auto' mode, hand off to AI validation (async); the participant
         // isn't blocked on it. In 'manual' mode there's no AI step — the
-        // receipt stays `submitted` until the organizer confirms it.
-        if (config('cuentaclara.review_mode') === 'auto') {
+        // receipt stays `submitted` until the organizer confirms it. The mode
+        // is the admin-controlled global setting, falling back to the config.
+        $reviewMode = Setting::get('review_mode', config('cuentaclara.review_mode'));
+        if ($reviewMode === 'auto') {
             ValidateReceiptJob::dispatch($receipt);
         }
 
