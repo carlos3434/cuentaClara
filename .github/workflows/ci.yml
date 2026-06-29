@@ -39,8 +39,8 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Run front-end tests (Vitest)
-        run: npm run test:js
+      - name: Run front-end tests (Vitest) with coverage
+        run: npm run test:js:coverage
 
       # Feature tests render Inertia pages, which require the Vite manifest.
       - name: Build front-end assets
