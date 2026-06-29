@@ -42,10 +42,63 @@ const form = useForm({
 });
 const preview = ref(null);
 
+// Lightweight, best-effort browser check: read the image with on-device OCR
+// and look for Yape/Plin/transfer markers. This only WARNS (it's spoofable and
+// imperfect); the AI on the server is the real gate. Failures are silent.
+const analyzing = ref(false);
+const looksValid = ref(null); // null = unknown/skip, true/false = OCR result
+const confirmAnyway = ref(false);
+
+// Normalized (lowercase, accent-stripped) markers of a real PE payment receipt.
+const RECEIPT_MARKERS = [
+    'yape', 'te yapearon', 'yapeaste', 'plin', 'plinea',
+    'constancia', 'transferencia', 'transfiri', 'comprobante',
+    'operacion', 'exitosa', 'exitoso', 'numero de operacion',
+    'bcp', 'bbva', 'interbank', 'scotiabank', 'banco', 's/',
+];
+
+const uploadBlocked = computed(() => looksValid.value === false && !confirmAnyway.value);
+
+function resetCheck() {
+    analyzing.value = false;
+    looksValid.value = null;
+    confirmAnyway.value = false;
+}
+
 function onFile(e) {
     const file = e.target.files[0] ?? null;
     form.image = file;
     preview.value = file ? URL.createObjectURL(file) : null;
+    resetCheck();
+    if (file) analyze(file);
+}
+
+async function analyze(file) {
+    analyzing.value = true;
+    try {
+        const text = await Promise.race([
+            readImageText(file),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 9000)),
+        ]);
+        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        looksValid.value = RECEIPT_MARKERS.some((m) => norm.includes(m));
+    } catch (e) {
+        looksValid.value = null; // best-effort: if OCR fails or is slow, don't warn
+    } finally {
+        analyzing.value = false;
+    }
+}
+
+async function readImageText(file) {
+    const Tesseract = await import('tesseract.js'); // lazy — only loaded on first upload
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1000 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const { data } = await Tesseract.recognize(canvas, 'eng');
+    return data.text ?? '';
 }
 
 function submit() {
@@ -54,6 +107,7 @@ function submit() {
         onSuccess: () => {
             form.reset('image');
             preview.value = null;
+            resetCheck();
         },
     });
 }
@@ -138,11 +192,22 @@ function submit() {
                 </label>
                 <input id="image" type="file" accept="image/*" capture="environment" class="sr-only" @change="onFile" />
                 <p v-if="form.errors.image" class="mt-1 text-sm text-red-600">{{ form.errors.image }}</p>
+
+                <p v-if="analyzing" class="mt-2 text-sm text-slate-500">Revisando la imagen…</p>
+
+                <div v-if="uploadBlocked" class="mt-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <p class="font-medium">Esto no parece un voucher de Yape, Plin o transferencia.</p>
+                    <p class="mt-1">Sube la captura del pago. Si estás seguro de que es correcto, puedes enviarlo igual.</p>
+                    <label class="mt-2 flex items-center gap-2 font-medium">
+                        <input v-model="confirmAnyway" type="checkbox" class="rounded border-slate-300 text-teal-600 focus:ring-teal-600" />
+                        Es un voucher válido, enviar de todas formas
+                    </label>
+                </div>
             </div>
 
-            <button type="submit" :disabled="form.processing || !form.image"
+            <button type="submit" :disabled="form.processing || !form.image || analyzing || uploadBlocked"
                 class="w-full rounded-xl bg-teal-600 px-4 py-3.5 text-base font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:opacity-50">
-                {{ form.processing ? 'Enviando…' : 'Enviar voucher' }}
+                {{ form.processing ? 'Enviando…' : (analyzing ? 'Revisando…' : 'Enviar voucher') }}
             </button>
         </form>
     </main>

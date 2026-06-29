@@ -18,7 +18,7 @@ use RuntimeException;
  */
 class AnthropicReceiptVision implements ReceiptVision
 {
-    private const SYSTEM = <<<'TXT'
+    const SYSTEM = <<<'TXT'
         Eres un lector de comprobantes de pago peruanos (Yape, Plin, transferencias).
         Extrae SOLO lo que se ve en la imagen. Devuelve EXCLUSIVAMENTE un objeto JSON
         con esta forma, sin texto adicional:

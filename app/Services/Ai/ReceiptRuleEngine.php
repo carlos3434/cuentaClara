@@ -31,11 +31,32 @@ class ReceiptRuleEngine
             return $this->review('amount_mismatch');
         }
 
+        if (! $this->methodAccepted($event, $x->method)) {
+            return $this->review('method_not_accepted');
+        }
+
         if ($x->confidence < (float) config('cuentaclara.ai.confidence_threshold')) {
             return $this->review('low_confidence');
         }
 
         return ['verdict' => 'validated', 'reason_code' => null];
+    }
+
+    /**
+     * The detected payment method must be one the organizer accepts
+     * (i.e. a real Yape/Plin/transfer receipt, not just any image).
+     * A null/unreadable method isn't penalized here — is_payment_receipt
+     * already vouches it's a receipt; we don't block good-faith uploads.
+     */
+    private function methodAccepted(Event $event, ?string $method): bool
+    {
+        $accepted = $event->accepted_methods ?? [];
+
+        if ($method === null || $accepted === []) {
+            return true;
+        }
+
+        return in_array($method, $accepted, true);
     }
 
     /**
