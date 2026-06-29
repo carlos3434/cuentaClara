@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Organizer;
 
+use App\Actions\Events\StoreExpenseReceipt;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
-use App\Services\Storage\ReceiptStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -52,7 +52,7 @@ class EventController extends Controller
     /**
      * Persist the event and hand back its shareable public link.
      */
-    public function store(StoreEventRequest $request, ReceiptStorage $storage): RedirectResponse
+    public function store(StoreEventRequest $request, StoreExpenseReceipt $expenses): RedirectResponse
     {
         $data = $request->validated();
 
@@ -76,14 +76,7 @@ class EventController extends Controller
 
         // Optional expense receipt uploaded alongside the event.
         if ($request->hasFile('expense_image')) {
-            $file = $request->file('expense_image');
-            $event->expenses()->create([
-                's3_key' => $storage->store($file, $event, 'expenses'),
-                'original_filename' => $file->getClientOriginalName(),
-                'mime_type' => $file->getClientMimeType(),
-                'size_bytes' => $file->getSize(),
-                'note' => $data['expense_note'] ?? null,
-            ]);
+            $expenses->handle($event, $request->file('expense_image'), $data['expense_note'] ?? null);
         }
 
         return redirect()->route('organizer.events.created', $event);
@@ -94,7 +87,7 @@ class EventController extends Controller
      */
     public function close(Event $event): RedirectResponse
     {
-        abort_unless($event->user_id === auth()->id(), 403);
+        $this->authorize('manage', $event);
 
         $event->update(['status' => 'closed']);
 
@@ -106,7 +99,7 @@ class EventController extends Controller
      */
     public function reopen(Event $event): RedirectResponse
     {
-        abort_unless($event->user_id === auth()->id(), 403);
+        $this->authorize('manage', $event);
 
         $event->update(['status' => 'active']);
 
@@ -119,7 +112,7 @@ class EventController extends Controller
     public function created(Event $event): Response
     {
         // An organizer may only see the share page for their own events.
-        abort_unless($event->user_id === auth()->id(), 403);
+        $this->authorize('manage', $event);
 
         return Inertia::render('Events/Created', [
             'event' => [

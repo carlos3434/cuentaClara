@@ -4,7 +4,7 @@ namespace App\Services\Ai;
 
 use App\Models\Receipt;
 use App\Services\Ai\Contracts\ReceiptVision;
-use Illuminate\Support\Facades\Storage;
+use App\Services\Storage\ReceiptStorage;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -34,6 +34,8 @@ class AnthropicReceiptVision implements ReceiptVision
         No inventes valores; usa null y confianza baja cuando no sea legible.
         TXT;
 
+    public function __construct(private readonly ReceiptStorage $storage) {}
+
     public function extract(Receipt $receipt): ReceiptExtraction
     {
         $config = config('cuentaclara.ai.anthropic');
@@ -42,7 +44,7 @@ class AnthropicReceiptVision implements ReceiptVision
             throw new RuntimeException('Anthropic API key not configured.');
         }
 
-        $image = Storage::disk(config('cuentaclara.receipts_disk'))->get($receipt->s3_key);
+        $image = $this->storage->get($receipt->s3_key);
         if ($image === null) {
             throw new RuntimeException("Receipt image not found: {$receipt->s3_key}");
         }

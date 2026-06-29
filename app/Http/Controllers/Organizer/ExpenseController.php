@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Organizer;
 
+use App\Actions\Events\StoreExpenseReceipt;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreExpenseRequest;
 use App\Models\Event;
 use App\Models\EventExpense;
 use App\Services\Storage\ReceiptStorage;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -17,46 +17,32 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ExpenseController extends Controller
 {
-    public function store(StoreExpenseRequest $request, Event $event, ReceiptStorage $storage): RedirectResponse
+    public function store(StoreExpenseRequest $request, Event $event, StoreExpenseReceipt $expenses): RedirectResponse
     {
-        $this->authorizeEvent($event);
+        $this->authorize('manage', $event);
 
-        $file = $request->file('image');
-        $event->expenses()->create([
-            's3_key' => $storage->store($file, $event, 'expenses'),
-            'original_filename' => $file->getClientOriginalName(),
-            'mime_type' => $file->getClientMimeType(),
-            'size_bytes' => $file->getSize(),
-            'note' => $request->validated()['note'] ?? null,
-        ]);
+        $expenses->handle($event, $request->file('image'), $request->validated()['note'] ?? null);
 
         return back();
     }
 
-    public function image(Event $event, EventExpense $expense): StreamedResponse
+    public function image(Event $event, EventExpense $expense, ReceiptStorage $storage): StreamedResponse
     {
-        $this->authorizeEvent($event);
+        $this->authorize('manage', $event);
         abort_unless($expense->event_id === $event->id, 404);
+        abort_unless($storage->exists($expense->s3_key), 404);
 
-        $disk = Storage::disk(config('cuentaclara.receipts_disk'));
-        abort_unless($disk->exists($expense->s3_key), 404);
-
-        return $disk->response($expense->s3_key);
+        return $storage->streamResponse($expense->s3_key);
     }
 
-    public function destroy(Event $event, EventExpense $expense): RedirectResponse
+    public function destroy(Event $event, EventExpense $expense, ReceiptStorage $storage): RedirectResponse
     {
-        $this->authorizeEvent($event);
+        $this->authorize('manage', $event);
         abort_unless($expense->event_id === $event->id, 404);
 
-        Storage::disk(config('cuentaclara.receipts_disk'))->delete($expense->s3_key);
+        $storage->delete($expense->s3_key);
         $expense->delete();
 
         return back();
-    }
-
-    private function authorizeEvent(Event $event): void
-    {
-        abort_unless($event->user_id === auth()->id(), 403);
     }
 }

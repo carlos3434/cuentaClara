@@ -18,7 +18,7 @@ jobs:
         with:
           php-version: '8.3'
           extensions: mbstring, dom, xml, bcmath, ctype, fileinfo, tokenizer, pdo_sqlite, sqlite3
-          coverage: none
+          coverage: pcov
 
       - name: Cache Composer packages
         uses: actions/cache@v6
@@ -48,5 +48,5 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-      - name: Run tests
-        run: php artisan test
+      - name: Run tests with coverage
+        run: php artisan test --coverage

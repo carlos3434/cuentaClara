@@ -43,7 +43,7 @@ class AnthropicReceiptVisionTest extends TestCase
             .'"payment_date":{"value":"2026-06-24"},"recipient":{"name":"Caro"},'
             .'"payment_method":{"value":"yape"},"overall_confidence":0.91,"explanation":"ok"} listo.');
 
-        $x = (new AnthropicReceiptVision())->extract($this->receipt());
+        $x = app(AnthropicReceiptVision::class)->extract($this->receipt());
 
         $this->assertTrue($x->isReceipt);
         $this->assertSame(4000, $x->amountCents);
@@ -66,14 +66,14 @@ class AnthropicReceiptVisionTest extends TestCase
         config()->set('cuentaclara.ai.anthropic.api_key', '');
 
         $this->expectException(RuntimeException::class);
-        (new AnthropicReceiptVision())->extract($this->receipt());
+        app(AnthropicReceiptVision::class)->extract($this->receipt());
     }
 
     public function test_throws_when_image_is_missing(): void
     {
         $this->expectException(RuntimeException::class);
         // s3_key points nowhere (nothing put on the fake disk).
-        (new AnthropicReceiptVision())->extract(new Receipt(['s3_key' => 'missing.jpg']));
+        app(AnthropicReceiptVision::class)->extract(new Receipt(['s3_key' => 'missing.jpg']));
     }
 
     public function test_throws_when_response_has_no_json(): void
@@ -81,6 +81,6 @@ class AnthropicReceiptVisionTest extends TestCase
         $this->fakeModelText('Lo siento, no pude leer el comprobante.');
 
         $this->expectException(RuntimeException::class);
-        (new AnthropicReceiptVision())->extract($this->receipt());
+        app(AnthropicReceiptVision::class)->extract($this->receipt());
     }
 }

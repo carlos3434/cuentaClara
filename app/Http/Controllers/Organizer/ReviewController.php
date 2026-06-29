@@ -6,9 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Participant;
 use App\Models\Receipt;
+use App\Services\Storage\ReceiptStorage;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -96,15 +95,13 @@ class ReviewController extends Controller
     /**
      * Stream a receipt image to its owning organizer (private disk).
      */
-    public function image(Event $event, Receipt $receipt): StreamedResponse
+    public function image(Event $event, Receipt $receipt, ReceiptStorage $storage): StreamedResponse
     {
         $this->authorizeReceipt($event, $receipt);
         abort_if($receipt->s3_key === null, 404);
+        abort_unless($storage->exists($receipt->s3_key), 404);
 
-        $disk = Storage::disk(config('cuentaclara.receipts_disk'));
-        abort_unless($disk->exists($receipt->s3_key), 404);
-
-        return $disk->response($receipt->s3_key);
+        return $storage->streamResponse($receipt->s3_key);
     }
 
     public function approve(Event $event, Receipt $receipt): RedirectResponse
@@ -153,7 +150,7 @@ class ReviewController extends Controller
 
     private function authorizeEvent(Event $event): void
     {
-        abort_unless($event->user_id === auth()->id(), 403);
+        $this->authorize('manage', $event);
     }
 
     private function authorizeReceipt(Event $event, Receipt $receipt): void

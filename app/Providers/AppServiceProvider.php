@@ -17,7 +17,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(ReceiptVision::class, function () {
             return match (config('cuentaclara.ai.driver')) {
-                'anthropic' => new AnthropicReceiptVision(),
+                'anthropic' => $this->app->make(AnthropicReceiptVision::class),
                 default => new FakeReceiptVision(),
             };
         });
