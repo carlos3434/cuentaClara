@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
+import Icon from '../../Components/Icon.vue';
 
 defineProps({
     events: { type: Array, default: () => [] },
@@ -18,6 +19,11 @@ const statusLabels = {
     active: 'Activo',
     draft: 'Borrador',
     closed: 'Cerrado',
+};
+const statusIcons = {
+    active: 'check-circle',
+    draft: 'clock',
+    closed: 'x-circle',
 };
 
 function soles(cents) {
@@ -68,7 +74,8 @@ function logout() {
                             <p class="truncate font-semibold">{{ event.name }}</p>
                             <p class="mt-0.5 text-sm text-slate-500">{{ formatDate(event.event_date) }}</p>
                         </div>
-                        <span :class="['shrink-0 rounded-full px-2.5 py-1 text-xs font-medium', statusStyles[event.status] ?? statusStyles.draft]">
+                        <span :class="['inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium', statusStyles[event.status] ?? statusStyles.draft]">
+                            <Icon :name="statusIcons[event.status] ?? 'clock'" class="h-3.5 w-3.5" />
                             {{ statusLabels[event.status] ?? event.status }}
                         </span>
                     </div>

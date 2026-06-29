@@ -22,11 +22,12 @@ const reasonLabels = {
     organizer_rejected: 'Rechazado',
 };
 const statusBadge = {
-    paid: { label: 'Pagó', cls: 'bg-teal-100 text-teal-800' },
-    review: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800' },
-    rejected: { label: 'Rechazado', cls: 'bg-red-100 text-red-800' },
-    pending: { label: 'Pendiente', cls: 'bg-slate-100 text-slate-600' },
+    paid: { label: 'Pagó', cls: 'bg-teal-100 text-teal-800', icon: 'check-circle' },
+    review: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800', icon: 'clock' },
+    rejected: { label: 'Rechazado', cls: 'bg-red-100 text-red-800', icon: 'x-circle' },
+    pending: { label: 'Pendiente', cls: 'bg-slate-100 text-slate-600', icon: 'clock' },
 };
+const badgeOf = (status) => statusBadge[status] ?? statusBadge.pending;
 
 const soles = (c) => (c / 100).toFixed(2);
 
@@ -117,7 +118,8 @@ function reopenEvent() {
         <header class="mb-5 flex items-start justify-between gap-3">
             <h1 class="text-2xl font-bold">{{ event.name }}</h1>
             <span v-if="event.status === 'closed'"
-                class="mt-1 shrink-0 rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700">
+                class="mt-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700">
+                <Icon name="x-circle" class="h-3.5 w-3.5" />
                 Cerrado
             </span>
         </header>
@@ -205,8 +207,9 @@ function reopenEvent() {
                 <li v-for="p in participants" :key="p.id" class="px-4 py-3">
                     <div class="flex items-center justify-between gap-2">
                         <div class="flex min-w-0 items-center gap-2">
-                            <span :class="['shrink-0 rounded-full px-2.5 py-1 text-xs font-medium', (statusBadge[p.status] ?? statusBadge.pending).cls]">
-                                {{ (statusBadge[p.status] ?? statusBadge.pending).label }}
+                            <span :class="['inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium', badgeOf(p.status).cls]">
+                                <Icon :name="badgeOf(p.status).icon" class="h-3.5 w-3.5" />
+                                {{ badgeOf(p.status).label }}
                             </span>
                             <span class="truncate font-medium">{{ p.name }}</span>
                         </div>

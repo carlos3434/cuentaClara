@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
+import Icon from '../../Components/Icon.vue';
 
 const props = defineProps({
     event: Object,
@@ -17,9 +18,9 @@ const methodLabels = {
 };
 
 const badges = {
-    pending: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800' },
-    confirmed: { label: 'Confirmado', cls: 'bg-teal-100 text-teal-800' },
-    review: { label: 'Revisar', cls: 'bg-red-100 text-red-800' },
+    pending: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800', icon: 'clock' },
+    confirmed: { label: 'Confirmado', cls: 'bg-teal-100 text-teal-800', icon: 'check-circle' },
+    review: { label: 'Revisar', cls: 'bg-red-100 text-red-800', icon: 'alert' },
 };
 const badge = computed(() =>
     props.participant && props.participant.badge !== 'none'
@@ -136,7 +137,8 @@ function submit() {
                     <p class="text-sm text-slate-500">Tu parte</p>
                     <p class="text-3xl font-bold text-teal-700">S/ {{ shareSoles }}</p>
                 </div>
-                <span v-if="badge" :class="['rounded-full px-2.5 py-1 text-xs font-medium', badge.cls]">
+                <span v-if="badge" :class="['inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium', badge.cls]">
+                    <Icon :name="badge.icon" class="h-3.5 w-3.5" />
                     {{ badge.label }}
                 </span>
             </div>
