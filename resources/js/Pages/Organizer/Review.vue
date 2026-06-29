@@ -207,29 +207,28 @@ function reopenEvent() {
 
             <ul v-else class="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
                 <li v-for="p in participants" :key="p.id" class="px-4 py-3">
-                    <div class="flex items-center justify-between gap-2">
-                        <div class="flex min-w-0 items-center gap-2">
-                            <span :class="['inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium', badgeOf(p.status).cls]">
-                                <Icon :name="badgeOf(p.status).icon" class="h-3.5 w-3.5" />
-                                {{ badgeOf(p.status).label }}
-                            </span>
-                            <span class="truncate font-medium">{{ p.name }}</span>
-                        </div>
-                        <div class="flex shrink-0 items-center gap-3">
-                            <button v-if="p.receipt && p.receipt.image_url" type="button" @click="toggleVoucher(p.id)"
-                                class="flex items-center gap-1 text-sm font-medium text-teal-700">
-                                {{ expanded.has(p.id) ? 'Ocultar' : 'Ver voucher' }}
-                                <Icon name="chevron-down" class="h-4 w-4 transition-transform" :class="{ 'rotate-180': expanded.has(p.id) }" />
-                            </button>
-                            <a v-if="p.status !== 'paid'" :href="participantReminderUrl(p)" target="_blank" rel="noopener"
-                                class="flex items-center gap-1 text-sm font-medium text-[#1da851]">
-                                <Icon name="whatsapp" class="h-4 w-4" />
-                                Recordar
-                            </a>
-                            <button v-if="p.status !== 'paid'" type="button" @click="markCash(p)" class="text-sm font-medium text-teal-700">
-                                Efectivo
-                            </button>
-                        </div>
+                    <div class="flex items-center gap-2">
+                        <span :class="['inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium', badgeOf(p.status).cls]">
+                            <Icon :name="badgeOf(p.status).icon" class="h-3.5 w-3.5" />
+                            {{ badgeOf(p.status).label }}
+                        </span>
+                        <span class="min-w-0 flex-1 truncate font-medium">{{ p.name }}</span>
+                    </div>
+                    <div v-if="(p.receipt && p.receipt.image_url) || p.status !== 'paid'"
+                        class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <button v-if="p.receipt && p.receipt.image_url" type="button" @click="toggleVoucher(p.id)"
+                            class="flex items-center gap-1 text-sm font-medium text-teal-700">
+                            {{ expanded.has(p.id) ? 'Ocultar' : 'Ver voucher' }}
+                            <Icon name="chevron-down" class="h-4 w-4 transition-transform" :class="{ 'rotate-180': expanded.has(p.id) }" />
+                        </button>
+                        <a v-if="p.status !== 'paid'" :href="participantReminderUrl(p)" target="_blank" rel="noopener"
+                            class="flex items-center gap-1 text-sm font-medium text-[#1da851]">
+                            <Icon name="whatsapp" class="h-4 w-4" />
+                            Recordar
+                        </a>
+                        <button v-if="p.status !== 'paid'" type="button" @click="markCash(p)" class="text-sm font-medium text-teal-700">
+                            Efectivo
+                        </button>
                     </div>
 
                     <!-- Inspect the participant's uploaded voucher -->

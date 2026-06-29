@@ -173,17 +173,29 @@ siempre puede sobrescribir la decisión de la IA.
 
 ## Capturas
 
-> Los mockups de cada pantalla (crear evento, landing del participante, subida,
-> cola de revisión) están en
-> [`docs/04-ux-principles.md`](docs/04-ux-principles.md). Las capturas reales
-> irán en `docs/screenshots/` — se pueden generar automáticamente con un
-> navegador headless (Playwright) sobre la app corriendo en dev.
+<p>
+  <img src="docs/screenshots/dashboard.png" width="220" alt="Dashboard del organizador" />
+  <img src="docs/screenshots/create.png" width="220" alt="Crear evento" />
+  <img src="docs/screenshots/public-event.png" width="220" alt="Landing del participante" />
+</p>
+<p>
+  <img src="docs/screenshots/review.png" width="220" alt="Cola de revisión" />
+  <img src="docs/screenshots/created.png" width="220" alt="Link para compartir" />
+</p>
 
-<!--
-![Crear evento](docs/screenshots/create.png)
-![Landing del participante](docs/screenshots/public-event.png)
-![Cola de revisión](docs/screenshots/review.png)
--->
+De izquierda a derecha: **dashboard**, **crear evento**, **landing del participante**,
+**cola de revisión** (cobrado/pendiente, voucher por revisar con lectura de IA,
+participantes, comprobante del gasto) y **link para compartir**.
+
+Se regeneran con datos de demo:
+
+```bash
+php artisan migrate:fresh && php artisan db:seed --class=DemoSeeder   # login: demo@cuentaclara.test / password
+QUEUE_CONNECTION=sync AI_DRIVER=fake php artisan serve &
+SLUG=<demo-slug> node scripts/screenshots.mjs                          # → docs/screenshots/
+```
+
+(Mockups de cada pantalla en [`docs/04-ux-principles.md`](docs/04-ux-principles.md).)
 
 ## Mejoras a futuro
 
