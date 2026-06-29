@@ -32,28 +32,45 @@ class CollectionJourneyTest extends TestCase
         Storage::fake(config('cuentaclara.receipts_disk'));
     }
 
-    // --- Happy path: creation → upload → AI validates → confirmed ---------
+    // --- Happy path (manual review): upload → organizer confirms → paid ----
 
     public function test_happy_path_from_creation_to_confirmed_payment(): void
     {
+        // Default review mode is manual: every upload waits for the organizer.
         [$organizer, $event] = $this->organizerWithEvent();
         $this->assertSame(4000, $event->share_cents); // 48000 / 12
 
-        // Participant uploads; the fake vision reads the matching share, so the
-        // job (run inline) validates it through the real rule engine.
+        // Participant uploads; no AI runs, so it stays `submitted`.
         $this->upload($event, 'José')->assertRedirect("/e/{$event->slug}");
 
         $receipt = Receipt::firstOrFail();
-        $this->assertSame('validated', $receipt->status->value);
-        $this->assertSame('ai', $receipt->decided_by->value);
+        $this->assertSame('submitted', $receipt->status->value);
+        $this->assertNull($receipt->decided_by);
 
-        // Participant revisiting the link sees their payment confirmed.
+        // Participant revisiting the link sees their payment under review.
         $participant = Participant::firstOrFail();
         $this->withCookie("cc_p_{$event->id}", $participant->session_token)
             ->get("/e/{$event->slug}")
-            ->assertInertia(fn (Assert $p) => $p->where('participant.badge', 'confirmed'));
+            ->assertInertia(fn (Assert $p) => $p->where('participant.badge', 'pending'));
 
-        // Organizer dashboard reflects the collected amount.
+        // It shows in the review queue and nothing is collected yet.
+        $this->actingAs($organizer)
+            ->get("/events/{$event->slug}/review")
+            ->assertInertia(fn (Assert $p) => $p
+                ->where('summary.review_count', 1)
+                ->where('summary.collected_cents', 0)
+                ->where('participants.data.0.status', 'submitted'));
+
+        // Organizer confirms the payment.
+        $this->actingAs($organizer)
+            ->post("/events/{$event->slug}/receipts/{$receipt->id}/approve")
+            ->assertRedirect();
+
+        $receipt->refresh();
+        $this->assertSame('validated', $receipt->status->value);
+        $this->assertSame('organizer', $receipt->decided_by->value);
+
+        // Now it's collected and the participant shows as paid.
         $this->actingAs($organizer)
             ->get("/events/{$event->slug}/review")
             ->assertInertia(fn (Assert $p) => $p
@@ -63,10 +80,11 @@ class CollectionJourneyTest extends TestCase
                 ->where('participants.data.0.status', 'paid'));
     }
 
-    // --- Exception path: AI flags → organizer reviews → approves ----------
+    // --- Exception path (auto mode): AI flags → organizer reviews → approves -
 
     public function test_flagged_upload_is_resolved_by_organizer_approval(): void
     {
+        config(['cuentaclara.review_mode' => 'auto']);
         [$organizer, $event] = $this->organizerWithEvent();
         $this->visionReturns(new ReceiptExtraction(false, null, null, null, null, null, 0.2, 'no es un voucher'));
 
@@ -101,6 +119,7 @@ class CollectionJourneyTest extends TestCase
 
     public function test_organizer_rejection_keeps_the_payment_uncollected(): void
     {
+        config(['cuentaclara.review_mode' => 'auto']);
         [$organizer, $event] = $this->organizerWithEvent();
         $this->visionReturns(new ReceiptExtraction(true, 1000, 'PEN', '2026-06-24', 'yape', 'Otro', 0.9, 'monto menor'));
 
@@ -156,6 +175,7 @@ class CollectionJourneyTest extends TestCase
 
     public function test_collected_and_pending_track_multiple_payers(): void
     {
+        config(['cuentaclara.review_mode' => 'auto']);
         [$organizer, $event] = $this->organizerWithEvent(); // share 4000, total 48000
 
         $this->upload($event, 'Ana');

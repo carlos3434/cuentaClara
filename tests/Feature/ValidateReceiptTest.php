@@ -82,8 +82,9 @@ class ValidateReceiptTest extends TestCase
 
     // --- Dispatch on upload ---------------------------------------------
 
-    public function test_uploading_a_receipt_dispatches_validation(): void
+    public function test_auto_mode_dispatches_validation_on_upload(): void
     {
+        config(['cuentaclara.review_mode' => 'auto']);
         Queue::fake();
         Storage::fake(config('cuentaclara.receipts_disk'));
         $event = Event::factory()->create();
@@ -94,6 +95,22 @@ class ValidateReceiptTest extends TestCase
         ]);
 
         Queue::assertPushed(ValidateReceiptJob::class);
+    }
+
+    public function test_manual_mode_skips_ai_and_leaves_the_receipt_submitted(): void
+    {
+        config(['cuentaclara.review_mode' => 'manual']);
+        Queue::fake();
+        Storage::fake(config('cuentaclara.receipts_disk'));
+        $event = Event::factory()->create();
+
+        $this->post("/e/{$event->slug}/receipts", [
+            'name' => 'José',
+            'image' => UploadedFile::fake()->image('voucher.jpg'),
+        ]);
+
+        Queue::assertNotPushed(ValidateReceiptJob::class);
+        $this->assertSame('submitted', Receipt::firstOrFail()->status->value);
     }
 
     // --- Helpers --------------------------------------------------------

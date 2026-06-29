@@ -107,7 +107,7 @@ class ReviewQueueTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('participants.data.0.receipt.image_url', null));
     }
 
-    public function test_an_upload_awaiting_validation_shows_as_submitted(): void
+    public function test_an_upload_awaiting_confirmation_lands_in_the_review_queue(): void
     {
         $owner = User::factory()->create();
         $event = Event::factory()->create(['user_id' => $owner->id]);
@@ -118,7 +118,9 @@ class ReviewQueueTest extends TestCase
             ->get("/events/{$event->slug}/review")
             ->assertInertia(fn (Assert $page) => $page
                 ->where('participants.data.0.status', 'submitted')   // not 'pending'
-                ->where('summary.review_count', 0));             // not in the AI queue
+                ->where('summary.review_count', 1)                   // awaits manual confirmation
+                ->where('summary.collected_cents', 0)                // not counted as paid yet
+                ->has('review', 1));
     }
 
     public function test_participants_paginate_and_load_more_returns_the_rest(): void

@@ -30,6 +30,21 @@ return [
 
     /*
      |--------------------------------------------------------------------------
+     | Payment review mode
+     |--------------------------------------------------------------------------
+     |
+     | 'manual' → the organizer confirms every uploaded payment (it lands in
+     | the "Por revisar" queue until then). 'auto' → the AI auto-validates
+     | matching receipts and only exceptions reach the queue.
+     |
+     | Default is 'manual' until real AI validation is in place. The admin
+     | panel (future) will flip this at runtime.
+     |
+     */
+    'review_mode' => env('REVIEW_MODE', 'manual'),
+
+    /*
+     |--------------------------------------------------------------------------
      | AI receipt validation
      |--------------------------------------------------------------------------
      |

@@ -73,8 +73,12 @@ class ReceiptController extends Controller
             'status' => ReceiptStatus::Submitted,
         ]);
 
-        // Hand off to AI validation (async). Participant isn't blocked on it.
-        ValidateReceiptJob::dispatch($receipt);
+        // In 'auto' mode, hand off to AI validation (async); the participant
+        // isn't blocked on it. In 'manual' mode there's no AI step — the
+        // receipt stays `submitted` until the organizer confirms it.
+        if (config('cuentaclara.review_mode') === 'auto') {
+            ValidateReceiptJob::dispatch($receipt);
+        }
 
         $redirect = redirect()
             ->route('public.events.show', $event)

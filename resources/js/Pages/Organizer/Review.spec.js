@@ -77,34 +77,36 @@ describe('Organizer/Review', () => {
         expect(decoded).toContain('http://x/e/abc');
     });
 
-    it('shows participant badges and toggles a voucher panel', async () => {
+    it('shows participant badges and toggles a read-only voucher panel', async () => {
         const w = mount(Review, { props: makeProps() });
 
         expect(w.text()).toContain('Pagó');        // Ana
         expect(w.text()).toContain('Pendiente');   // Beto
-        expect(w.text()).not.toContain('Confirmar pago');
+        // Ana's voucher panel is collapsed initially.
+        expect(w.findAll('img').some((i) => i.attributes('alt') === 'Voucher de Ana')).toBe(false);
 
         await w.findAll('button').find((b) => b.text().includes('Ver voucher')).trigger('click');
-        expect(w.text()).toContain('Confirmar pago');
+        // The panel reveals the voucher but no confirm button — that lives in "Por revisar".
+        expect(w.findAll('img').some((i) => i.attributes('alt') === 'Voucher de Ana')).toBe(true);
     });
 
-    it('shows "Validando" for an upload awaiting validation', () => {
+    it('shows "En revisión" for an upload awaiting confirmation', () => {
         const w = mount(Review, {
             props: makeProps({
                 participants: participantsPage([{
                     id: 7, name: 'Nico', status: 'submitted',
-                    receipt: { id: 8, image_url: 'http://x/img/8', amount_cents: 4000, date: '2026-06-24', method: 'yape', recipient: 'Caro', confidence: 0.95, status: 'submitted', reason_code: null },
+                    receipt: { id: 8, image_url: 'http://x/img/8', amount_cents: null, date: null, method: null, recipient: null, confidence: null, status: 'submitted', reason_code: null },
                 }], null, 1),
             }),
         });
 
-        expect(w.text()).toContain('Validando');
+        expect(w.text()).toContain('En revisión');
     });
 
-    it('approves a receipt through the router', async () => {
+    it('confirms a receipt from the review queue through the router', async () => {
         const w = mount(Review, { props: makeProps() });
 
-        await w.findAll('button').find((b) => b.text().trim() === 'Aprobar').trigger('click');
+        await w.findAll('button').find((b) => b.text().includes('Confirmar pago')).trigger('click');
 
         expect(h.post).toHaveBeenCalled();
         expect(h.post.mock.calls[0][0]).toContain('/receipts/5/approve');

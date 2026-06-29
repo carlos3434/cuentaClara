@@ -29,8 +29,13 @@ class ReviewController extends Controller
     {
         $this->authorizeEvent($event);
 
+        // The review queue holds every receipt still awaiting the organizer's
+        // decision: freshly uploaded ones (`submitted`) and any the AI flagged
+        // (`needs_review`). Confirmed/rejected/cash receipts have left the queue.
         $event->load([
-            'receipts' => fn ($q) => $q->where('status', ReceiptStatus::NeedsReview->value)->latest('id'),
+            'receipts' => fn ($q) => $q
+                ->whereIn('status', [ReceiptStatus::Submitted->value, ReceiptStatus::NeedsReview->value])
+                ->latest('id'),
             'receipts.participant',
             'expenses' => fn ($q) => $q->latest('id'),
         ]);

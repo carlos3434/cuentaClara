@@ -43,7 +43,7 @@ const reasonLabels = {
 };
 const statusBadge = {
     paid: { label: 'Pagó', cls: 'bg-teal-100 text-teal-800', icon: 'check-circle' },
-    submitted: { label: 'Validando', cls: 'bg-amber-100 text-amber-800', icon: 'clock' },
+    submitted: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800', icon: 'clock' },
     review: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800', icon: 'alert' },
     rejected: { label: 'Rechazado', cls: 'bg-red-100 text-red-800', icon: 'x-circle' },
     pending: { label: 'Pendiente', cls: 'bg-slate-100 text-slate-600', icon: 'clock' },
@@ -186,13 +186,15 @@ function reopenEvent() {
                         {{ reasonLabels[r.reason_code] ?? r.reason_code }}
                     </p>
 
-                    <dl class="mt-3 space-y-1 text-sm">
+                    <p class="mt-2 text-sm text-slate-500">
+                        Monto esperado: <span class="font-medium text-slate-700">S/ {{ soles(event.share_cents) }}</span>
+                    </p>
+
+                    <!-- AI reading (only when the AI ran; hidden in manual mode) -->
+                    <dl v-if="r.amount_cents != null || r.confidence != null" class="mt-3 space-y-1 text-sm">
                         <div class="flex justify-between">
                             <dt class="text-slate-500">Monto leído</dt>
-                            <dd class="font-medium">
-                                {{ r.amount_cents != null ? 'S/ ' + soles(r.amount_cents) : '—' }}
-                                <span class="text-slate-400">(esperado S/ {{ soles(event.share_cents) }})</span>
-                            </dd>
+                            <dd class="font-medium">{{ r.amount_cents != null ? 'S/ ' + soles(r.amount_cents) : '—' }}</dd>
                         </div>
                         <div class="flex justify-between"><dt class="text-slate-500">Fecha</dt><dd class="font-medium">{{ r.date ?? '—' }}</dd></div>
                         <div class="flex justify-between"><dt class="text-slate-500">A</dt><dd class="font-medium">{{ r.recipient ?? '—' }}</dd></div>
@@ -204,7 +206,7 @@ function reopenEvent() {
                         <button type="button" @click="approve(r)"
                             class="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white active:scale-[0.99]">
                             <Icon name="check-circle" class="h-4 w-4" />
-                            Aprobar
+                            Confirmar pago
                         </button>
                         <button type="button" @click="reject(r)"
                             class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 active:scale-[0.99]">
@@ -269,18 +271,9 @@ function reopenEvent() {
                             <div class="flex justify-between"><dt class="text-slate-500">Método</dt><dd class="font-medium">{{ methodLabels[p.receipt.method] ?? p.receipt.method ?? '—' }}</dd></div>
                             <div v-if="p.receipt.confidence != null" class="flex justify-between"><dt class="text-slate-500">Confianza IA</dt><dd class="font-medium">{{ Math.round(p.receipt.confidence * 100) }}%</dd></div>
                         </dl>
-                        <div class="mt-3 flex gap-2">
-                            <button type="button" @click="approve(p.receipt)"
-                                class="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white active:scale-[0.99]">
-                                <Icon name="check-circle" class="h-4 w-4" />
-                                Confirmar pago
-                            </button>
-                            <button type="button" @click="reject(p.receipt)"
-                                class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 active:scale-[0.99]">
-                                <Icon name="x-circle" class="h-4 w-4" />
-                                Rechazar
-                            </button>
-                        </div>
+                        <p v-if="p.status === 'submitted' || p.status === 'review'" class="mt-3 text-center text-xs text-slate-500">
+                            Pendiente de tu confirmación en <span class="font-medium">“Por revisar”</span>.
+                        </p>
                     </div>
                 </li>
             </ul>
