@@ -45,6 +45,31 @@ class EventCreationTest extends TestCase
         $response->assertRedirect(route('organizer.events.created', $event));
     }
 
+    public function test_organizer_can_attach_an_expense_receipt_at_creation(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake(config('cuentaclara.receipts_disk'));
+        $user = User::factory()->create();
+
+        $payload = $this->validPayload();
+        $payload['expense_image'] = \Illuminate\Http\UploadedFile::fake()->image('cancha.jpg');
+        $payload['expense_note'] = 'Alquiler de cancha';
+
+        $this->actingAs($user)->post('/events', $payload)->assertRedirect();
+
+        $event = Event::firstOrFail();
+        $expense = $event->expenses()->firstOrFail();
+        $this->assertSame('Alquiler de cancha', $expense->note);
+        $this->assertNotNull($expense->s3_key);
+        \Illuminate\Support\Facades\Storage::disk(config('cuentaclara.receipts_disk'))->assertExists($expense->s3_key);
+    }
+
+    public function test_event_creates_without_an_expense_receipt(): void
+    {
+        $this->actingAs(User::factory()->create())->post('/events', $this->validPayload())->assertRedirect();
+
+        $this->assertDatabaseCount('event_expenses', 0);
+    }
+
     public function test_each_event_gets_a_unique_unguessable_slug(): void
     {
         $user = User::factory()->create();

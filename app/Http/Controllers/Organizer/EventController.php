@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Organizer;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
+use App\Services\Storage\ReceiptStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -51,7 +52,7 @@ class EventController extends Controller
     /**
      * Persist the event and hand back its shareable public link.
      */
-    public function store(StoreEventRequest $request): RedirectResponse
+    public function store(StoreEventRequest $request, ReceiptStorage $storage): RedirectResponse
     {
         $data = $request->validated();
 
@@ -72,6 +73,18 @@ class EventController extends Controller
             'pay_deadline' => $data['pay_deadline'],
             'status' => 'active',
         ]);
+
+        // Optional expense receipt uploaded alongside the event.
+        if ($request->hasFile('expense_image')) {
+            $file = $request->file('expense_image');
+            $event->expenses()->create([
+                's3_key' => $storage->store($file, $event, 'expenses'),
+                'original_filename' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size_bytes' => $file->getSize(),
+                'note' => $data['expense_note'] ?? null,
+            ]);
+        }
 
         return redirect()->route('organizer.events.created', $event);
     }

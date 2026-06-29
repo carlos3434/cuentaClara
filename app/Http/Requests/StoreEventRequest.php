@@ -31,6 +31,9 @@ class StoreEventRequest extends FormRequest
             'accepted_methods' => ['required', 'array', 'min:1'],
             'accepted_methods.*' => [Rule::in(['yape', 'plin', 'bank_transfer'])],
             'pay_deadline' => ['required', 'date', 'after_or_equal:today'],
+            // Optional: the organizer's own cost evidence, uploaded at creation.
+            'expense_image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,heic,heif', 'max:'.config('cuentaclara.receipts_max_kb')],
+            'expense_note' => ['nullable', 'string', 'max:200'],
         ];
     }
 
@@ -42,6 +45,8 @@ class StoreEventRequest extends FormRequest
         return [
             'accepted_methods.required' => 'Selecciona al menos un método de pago.',
             'pay_deadline.after_or_equal' => 'La fecha límite no puede ser en el pasado.',
+            'expense_image.mimes' => 'Sube una imagen (JPG, PNG, WEBP o HEIC).',
+            'expense_image.max' => 'La imagen es demasiado grande.',
         ];
     }
 }

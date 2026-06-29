@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, useForm, usePage, router } from '@inertiajs/vue3';
 
 const page = usePage();
@@ -24,7 +24,17 @@ const form = useForm({
     recipient_handle: '',
     accepted_methods: ['yape'],
     pay_deadline: '',
+    expense_image: null,
+    expense_note: '',
 });
+
+const expensePreview = ref(null);
+
+function onExpenseFile(e) {
+    const file = e.target.files[0] ?? null;
+    form.expense_image = file;
+    expensePreview.value = file ? URL.createObjectURL(file) : null;
+}
 
 const sharePreview = computed(() => {
     const total = parseFloat(form.total_amount);
@@ -40,7 +50,7 @@ function toggleMethod(value) {
 }
 
 function submit() {
-    form.post('/events');
+    form.post('/events', { forceFormData: true });
 }
 </script>
 
@@ -135,6 +145,24 @@ function submit() {
                 <input id="pay_deadline" v-model="form.pay_deadline" type="date"
                     class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-teal-600 focus:ring-teal-600" />
                 <p v-if="form.errors.pay_deadline" class="mt-1 text-sm text-red-600">{{ form.errors.pay_deadline }}</p>
+            </div>
+
+            <div>
+                <span class="block text-sm font-medium">Comprobante del gasto (opcional)</span>
+                <p class="mt-0.5 text-xs text-slate-500">Sube la evidencia de lo que pagaste (cancha, restaurante…).</p>
+                <label for="expense_image"
+                    class="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-6 text-center">
+                    <template v-if="!expensePreview">
+                        <span class="text-2xl">🧾</span>
+                        <span class="mt-1 text-sm font-medium text-slate-600">Agregar comprobante</span>
+                    </template>
+                    <img v-else :src="expensePreview" alt="Vista previa del comprobante" class="max-h-48 rounded-lg" />
+                </label>
+                <input id="expense_image" type="file" accept="image/*" capture="environment" class="sr-only" @change="onExpenseFile" />
+                <p v-if="form.errors.expense_image" class="mt-1 text-sm text-red-600">{{ form.errors.expense_image }}</p>
+                <input v-if="form.expense_image" v-model="form.expense_note" type="text" maxlength="200"
+                    placeholder="Nota (opcional): ej. Alquiler de cancha"
+                    class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-teal-600 focus:ring-teal-600" />
             </div>
         </form>
 

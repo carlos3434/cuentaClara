@@ -1,5 +1,7 @@
 # CuentaClara
 
+[![CI](https://github.com/carlos3434/cuentaClara/actions/workflows/ci.yml/badge.svg)](https://github.com/carlos3434/cuentaClara/actions/workflows/ci.yml)
+
 > Comparte un link, cobra el dinero, y deja que la IA revise los vouchers.
 
 **CuentaClara** es una aplicación web *mobile-first* para organizar pagos
