@@ -62,14 +62,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger Render deploy
+      - name: Deploy to Render and wait for it to go live
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "::warning::RENDER_DEPLOY_HOOK_URL secret is not set — skipping deploy. Add it in repo Settings → Secrets."
+          set -euo pipefail
+
+          if [ -z "${RENDER_API_KEY:-}" ] || [ -z "${RENDER_SERVICE_ID:-}" ]; then
+            echo "::warning::RENDER_API_KEY / RENDER_SERVICE_ID secrets are not set — skipping deploy. Add them in repo Settings → Secrets."
             exit 0
           fi
+
+          api="https://api.render.com/v1/services/${RENDER_SERVICE_ID}"
+          auth="Authorization: Bearer ${RENDER_API_KEY}"
+
           echo "Tests passed — triggering Render deploy…"
-          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
-          echo "Render deploy triggered."
+          deploy_id=$(curl -fsS -X POST "${api}/deploys" \
+            -H "${auth}" -H "Content-Type: application/json" -d '{}' \
+            | jq -r '.id')
+
+          if [ -z "$deploy_id" ] || [ "$deploy_id" = "null" ]; then
+            echo "::error::Could not create a Render deploy (check RENDER_API_KEY / RENDER_SERVICE_ID)."
+            exit 1
+          fi
+          echo "Deploy created: ${deploy_id}"
+          echo "Live logs: https://dashboard.render.com → service → Events"
+
+          # Poll until the deploy reaches a terminal state (timeout ~20 min).
+          deadline=$(( $(date +%s) + 1200 ))
+          while :; do
+            status=$(curl -fsS "${api}/deploys/${deploy_id}" -H "${auth}" | jq -r '.status')
+            echo "status: ${status}"
+            case "$status" in
+              live)
+                echo "✅ Deploy is live."
+                exit 0 ;;
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "::error::Render deploy ended with status '${status}'."
+                exit 1 ;;
+            esac
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Timed out waiting for the Render deploy to go live (last status: ${status})."
+              exit 1
+            fi
+            sleep 15
+          done
