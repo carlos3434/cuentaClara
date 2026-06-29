@@ -1,17 +1,25 @@
 import { mount } from '@vue/test-utils';
 
-// Reactive useForm so v-model + the share preview computed react to input.
+const m = vi.hoisted(() => ({ formPost: vi.fn(), routerPost: vi.fn() }));
+
+// Reactive useForm so v-model + computeds react; spies to assert submit/logout.
 vi.mock('@inertiajs/vue3', async () => {
     const { reactive } = await vi.importActual('vue');
     return {
         Head: { template: '<div><slot /></div>' },
-        router: { post: () => {} },
+        router: { post: m.routerPost },
         usePage: () => ({ props: { auth: { user: { name: 'Caro' } } } }),
-        useForm: (data) => reactive({ ...data, errors: {}, processing: false, post() {}, reset() {} }),
+        useForm: (data) => reactive({ ...data, errors: {}, processing: false, post: m.formPost, reset: vi.fn() }),
     };
 });
 
 import Create from './Create.vue';
+
+beforeEach(() => {
+    m.formPost.mockClear();
+    m.routerPost.mockClear();
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:preview');
+});
 
 describe('Events/Create', () => {
     it('renders all the event fields and method pills', () => {
@@ -41,5 +49,46 @@ describe('Events/Create', () => {
 
         expect(w.text()).toContain('Hola Caro');
         expect(w.text()).toContain('Salir');
+    });
+
+    // --- interactions ---
+
+    it('toggles a payment method pill', async () => {
+        const w = mount(Create);
+        const plin = w.findAll('button').find((b) => b.text() === 'Plin');
+
+        expect(plin.classes()).not.toContain('bg-teal-600');
+        await plin.trigger('click');
+        expect(plin.classes()).toContain('bg-teal-600');
+    });
+
+    it('submits the create-event form', async () => {
+        const w = mount(Create);
+
+        await w.find('#event-form').trigger('submit.prevent');
+
+        expect(m.formPost).toHaveBeenCalledWith('/events', expect.objectContaining({ forceFormData: true }));
+    });
+
+    it('logs out', async () => {
+        const w = mount(Create);
+
+        await w.findAll('button').find((b) => b.text() === 'Salir').trigger('click');
+
+        expect(m.routerPost).toHaveBeenCalledWith('/logout');
+    });
+
+    it('previews a selected expense receipt and reveals the note field', async () => {
+        const w = mount(Create);
+        const input = w.find('#expense_image');
+        Object.defineProperty(input.element, 'files', {
+            value: [new File(['x'], 'gasto.jpg', { type: 'image/jpeg' })],
+            configurable: true,
+        });
+
+        await input.trigger('change');
+
+        expect(globalThis.URL.createObjectURL).toHaveBeenCalled();
+        expect(w.find('input[placeholder^="Nota"]').exists()).toBe(true);
     });
 });

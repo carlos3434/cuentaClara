@@ -1,12 +1,12 @@
 import { mount } from '@vue/test-utils';
 
-const h = vi.hoisted(() => ({ post: vi.fn(), del: vi.fn() }));
+const h = vi.hoisted(() => ({ post: vi.fn(), del: vi.fn(), formPost: vi.fn() }));
 
 vi.mock('@inertiajs/vue3', () => ({
     Head: { template: '<div><slot /></div>' },
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
     router: { post: h.post, delete: h.del },
-    useForm: (data) => ({ ...data, errors: {}, processing: false, post() {}, reset() {} }),
+    useForm: (data) => ({ ...data, errors: {}, processing: false, post: h.formPost, reset: vi.fn() }),
 }));
 
 import Review from './Review.vue';
@@ -34,7 +34,12 @@ function makeProps(overrides = {}) {
     };
 }
 
-beforeEach(() => h.post.mockClear());
+beforeEach(() => {
+    h.post.mockClear();
+    h.del.mockClear();
+    h.formPost.mockClear();
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:preview');
+});
 
 describe('Organizer/Review', () => {
     it('shows collected/pending totals and progress', () => {
@@ -88,5 +93,61 @@ describe('Organizer/Review', () => {
     it('shows close when active and reopen when closed', () => {
         expect(mount(Review, { props: makeProps() }).text()).toContain('Cerrar evento');
         expect(mount(Review, { props: makeProps({ event: { ...makeProps().event, status: 'closed' } }) }).text()).toContain('Reabrir evento');
+    });
+
+    // --- interactions ---
+
+    it('rejects a receipt through the router', async () => {
+        const w = mount(Review, { props: makeProps() });
+
+        await w.findAll('button').find((b) => b.text().trim() === 'Rechazar').trigger('click');
+
+        expect(h.post.mock.calls[0][0]).toContain('/receipts/5/reject');
+    });
+
+    it('marks a pending participant as cash', async () => {
+        const w = mount(Review, { props: makeProps() });
+
+        await w.findAll('button').find((b) => b.text() === 'Efectivo').trigger('click');
+
+        expect(h.post.mock.calls[0][0]).toContain('/participants/2/cash');
+    });
+
+    it('closes the event', async () => {
+        const w = mount(Review, { props: makeProps() });
+
+        await w.findAll('button').find((b) => b.text().includes('Cerrar evento')).trigger('click');
+
+        expect(h.post.mock.calls[0][0]).toContain('/close');
+    });
+
+    it('reopens a closed event', async () => {
+        const w = mount(Review, { props: makeProps({ event: { ...makeProps().event, status: 'closed' } }) });
+
+        await w.findAll('button').find((b) => b.text().includes('Reabrir evento')).trigger('click');
+
+        expect(h.post.mock.calls[0][0]).toContain('/reopen');
+    });
+
+    it('deletes an expense receipt', async () => {
+        const w = mount(Review, { props: makeProps() });
+
+        await w.findAll('button').find((b) => b.text() === 'Eliminar').trigger('click');
+
+        expect(h.del.mock.calls[0][0]).toContain('/expenses/3');
+    });
+
+    it('uploads an expense receipt', async () => {
+        const w = mount(Review, { props: makeProps() });
+
+        const input = w.find('#expense-image');
+        Object.defineProperty(input.element, 'files', {
+            value: [new File(['x'], 'gasto.jpg', { type: 'image/jpeg' })],
+            configurable: true,
+        });
+        await input.trigger('change');
+        await w.find('form').trigger('submit.prevent');
+
+        expect(h.formPost).toHaveBeenCalled();
     });
 });

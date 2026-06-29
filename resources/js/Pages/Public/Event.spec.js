@@ -1,13 +1,15 @@
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 
-// Inertia + page props are mocked so we can mount the page in isolation.
-const mocks = vi.hoisted(() => ({ pageProps: { flash: {}, auth: { user: null } } }));
+const mocks = vi.hoisted(() => ({ pageProps: { flash: {}, auth: { user: null } }, post: vi.fn() }));
 
 vi.mock('@inertiajs/vue3', () => ({
     Head: { template: '<div><slot /></div>' },
     usePage: () => ({ props: mocks.pageProps }),
-    useForm: (data) => ({ ...data, errors: {}, processing: false, post: () => {}, reset: () => {} }),
+    useForm: (data) => ({ ...data, errors: {}, processing: false, post: mocks.post, reset: () => {} }),
 }));
+
+// Avoid loading the real (heavy) OCR engine during the dynamic import.
+vi.mock('tesseract.js', () => ({ recognize: vi.fn().mockResolvedValue({ data: { text: '' } }) }));
 
 import Event from './Event.vue';
 
@@ -26,13 +28,16 @@ const baseEvent = {
 
 beforeEach(() => {
     mocks.pageProps = { flash: {}, auth: { user: null } };
+    mocks.post.mockClear();
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:preview');
+    globalThis.createImageBitmap = vi.fn().mockResolvedValue({ width: 100, height: 100 });
 });
 
 describe('Public/Event', () => {
     it('shows the share, recipient and accepted methods', () => {
         const w = mount(Event, { props: { event: baseEvent, participant: null } });
 
-        expect(w.text()).toContain('S/ 40.00');                 // 4000 cents
+        expect(w.text()).toContain('S/ 40.00');
         expect(w.text()).toContain('Caro');
         expect(w.text()).toContain('(999888777)');
         expect(w.text()).toContain('Yape · Plin');
@@ -69,5 +74,31 @@ describe('Public/Event', () => {
 
         expect(w.text()).toContain('¡Listo!');
         expect(w.text()).toContain('José');
+    });
+
+    // --- interactions ---
+
+    it('previews and analyzes a selected image', async () => {
+        const w = mount(Event, { props: { event: baseEvent, participant: null } });
+
+        const input = w.find('#image');
+        Object.defineProperty(input.element, 'files', {
+            value: [new File(['x'], 'voucher.jpg', { type: 'image/jpeg' })],
+            configurable: true,
+        });
+        await input.trigger('change');
+        await flushPromises();
+
+        expect(globalThis.URL.createObjectURL).toHaveBeenCalled();   // preview built
+        expect(globalThis.createImageBitmap).toHaveBeenCalled();      // OCR check ran
+        expect(w.find('img').attributes('src')).toBe('blob:preview');
+    });
+
+    it('submits the voucher', async () => {
+        const w = mount(Event, { props: { event: baseEvent, participant: { name: 'José', badge: 'pending' } } });
+
+        await w.find('form').trigger('submit.prevent');
+
+        expect(mocks.post.mock.calls[0][0]).toBe('/e/abc123/receipts');
     });
 });
