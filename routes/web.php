@@ -32,6 +32,7 @@ Route::middleware('auth')->group(function () {
 
     Route::name('organizer.')->group(function () {
         Route::get('/events', [OrganizerEventController::class, 'index'])->name('events.index');
+        Route::get('/events/more', [OrganizerEventController::class, 'more'])->name('events.more');
         Route::get('/events/create', [OrganizerEventController::class, 'create'])->name('events.create');
         Route::post('/events', [OrganizerEventController::class, 'store'])->name('events.store');
         Route::get('/events/{event}/created', [OrganizerEventController::class, 'created'])->name('events.created');

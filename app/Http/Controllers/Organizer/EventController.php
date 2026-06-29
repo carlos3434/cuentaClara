@@ -7,6 +7,8 @@ use App\Enums\EventStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,32 +16,59 @@ use Inertia\Response;
 
 class EventController extends Controller
 {
+    private const PER_PAGE = 10;
+
     /**
-     * Organizer dashboard: the authenticated user's events, newest first.
-     *
-     * Payment totals (collected/pending) arrive with the participant +
-     * receipt slices; for now we show event setup only — no faked numbers.
+     * Organizer dashboard: the user's events, newest first, paginated so the
+     * page stays light (the rest load on demand via `more`).
      */
     public function index(Request $request): Response
     {
-        $events = $request->user()->events()->latest('id')->get()
-            ->map(fn (Event $event) => [
-                'slug' => $event->slug,
-                'name' => $event->name,
-                'event_date' => $event->event_date->toDateString(),
-                'pay_deadline' => $event->pay_deadline->toDateString(),
-                'total_cents' => $event->total_cents,
-                'share_cents' => $event->share_cents,
-                'headcount' => $event->headcount,
-                'status' => $event->status,
-                'public_url' => route('public.events.show', $event),
-                'share_url' => route('organizer.events.created', $event),
-                'review_url' => route('organizer.events.review', $event),
-            ]);
-
         return Inertia::render('Events/Index', [
-            'events' => $events,
+            'events' => $this->page($request->user()->events()->latest('id')->paginate(self::PER_PAGE)),
         ]);
+    }
+
+    /**
+     * Next page of events for the dashboard's "Ver más" (JSON, appended client-side).
+     */
+    public function more(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->page($request->user()->events()->latest('id')->paginate(self::PER_PAGE)),
+        );
+    }
+
+    /**
+     * @return array{data: array<int, array<string, mixed>>, next_page: ?int, total: int}
+     */
+    private function page(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'data' => collect($paginator->items())->map(fn (Event $event) => $this->present($event))->all(),
+            'next_page' => $paginator->hasMorePages() ? $paginator->currentPage() + 1 : null,
+            'total' => $paginator->total(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function present(Event $event): array
+    {
+        return [
+            'slug' => $event->slug,
+            'name' => $event->name,
+            'event_date' => $event->event_date->toDateString(),
+            'pay_deadline' => $event->pay_deadline->toDateString(),
+            'total_cents' => $event->total_cents,
+            'share_cents' => $event->share_cents,
+            'headcount' => $event->headcount,
+            'status' => $event->status,
+            'public_url' => route('public.events.show', $event),
+            'share_url' => route('organizer.events.created', $event),
+            'review_url' => route('organizer.events.review', $event),
+        ];
     }
 
     /**

@@ -24,7 +24,9 @@ class EventsDashboardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Events/Index')
-                ->has('events', 0));
+                ->has('events.data', 0)
+                ->where('events.total', 0)
+                ->where('events.next_page', null));
     }
 
     public function test_dashboard_lists_only_the_authenticated_organizers_events(): void
@@ -40,8 +42,9 @@ class EventsDashboardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Events/Index')
-                ->has('events', 2)
-                ->has('events.0', fn (Assert $event) => $event
+                ->where('events.total', 2)
+                ->has('events.data', 2)
+                ->has('events.data.0', fn (Assert $event) => $event
                     ->has('slug')
                     ->has('name')
                     ->has('total_cents')
@@ -56,13 +59,40 @@ class EventsDashboardTest extends TestCase
     public function test_dashboard_shows_newest_events_first(): void
     {
         $owner = User::factory()->create();
-        $older = Event::factory()->create(['user_id' => $owner->id, 'name' => 'Older']);
-        $newer = Event::factory()->create(['user_id' => $owner->id, 'name' => 'Newer']);
+        Event::factory()->create(['user_id' => $owner->id, 'name' => 'Older']);
+        Event::factory()->create(['user_id' => $owner->id, 'name' => 'Newer']);
 
         $this->actingAs($owner)
             ->get('/events')
             ->assertInertia(fn (Assert $page) => $page
-                ->where('events.0.name', 'Newer')
-                ->where('events.1.name', 'Older'));
+                ->where('events.data.0.name', 'Newer')
+                ->where('events.data.1.name', 'Older'));
+    }
+
+    public function test_dashboard_paginates_and_load_more_returns_the_rest(): void
+    {
+        $owner = User::factory()->create();
+        Event::factory()->count(12)->create(['user_id' => $owner->id]);
+
+        // First page: 10 of 12, with a pointer to page 2.
+        $this->actingAs($owner)
+            ->get('/events')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('events.data', 10)
+                ->where('events.total', 12)
+                ->where('events.next_page', 2));
+
+        // "Ver más" → JSON with the remaining 2 and no further pages.
+        $this->actingAs($owner)
+            ->getJson('/events/more?page=2')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('next_page', null)
+            ->assertJsonPath('total', 12);
+    }
+
+    public function test_load_more_requires_authentication(): void
+    {
+        $this->get('/events/more')->assertRedirect('/login');
     }
 }
