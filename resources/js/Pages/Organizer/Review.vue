@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import Icon from '../../Components/Icon.vue';
 
 const props = defineProps({
     event: Object,
@@ -139,6 +140,7 @@ function reopenEvent() {
 
             <a v-if="summary.paid_count < summary.headcount" :href="groupReminderUrl" target="_blank" rel="noopener"
                 class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-semibold text-white active:scale-[0.99]">
+                <Icon name="whatsapp" class="h-5 w-5" />
                 Recordar al grupo por WhatsApp
             </a>
         </section>
@@ -210,11 +212,13 @@ function reopenEvent() {
                         </div>
                         <div class="flex shrink-0 items-center gap-3">
                             <button v-if="p.receipt && p.receipt.image_url" type="button" @click="toggleVoucher(p.id)"
-                                class="text-sm font-medium text-teal-700">
+                                class="flex items-center gap-1 text-sm font-medium text-teal-700">
                                 {{ expanded.has(p.id) ? 'Ocultar' : 'Ver voucher' }}
+                                <Icon name="chevron-down" class="h-4 w-4 transition-transform" :class="{ 'rotate-180': expanded.has(p.id) }" />
                             </button>
                             <a v-if="p.status !== 'paid'" :href="participantReminderUrl(p)" target="_blank" rel="noopener"
-                                class="text-sm font-medium text-[#1da851]">
+                                class="flex items-center gap-1 text-sm font-medium text-[#1da851]">
+                                <Icon name="whatsapp" class="h-4 w-4" />
                                 Recordar
                             </a>
                             <button v-if="p.status !== 'paid'" type="button" @click="markCash(p)" class="text-sm font-medium text-teal-700">

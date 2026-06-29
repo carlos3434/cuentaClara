@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
+import Icon from '../../Components/Icon.vue';
 
 const props = defineProps({
     event: Object,
@@ -56,8 +57,9 @@ async function copyLink() {
                     class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-700"
                     @focus="(e) => e.target.select()" />
                 <button type="button" @click="copyLink"
-                    class="shrink-0 rounded-xl border border-teal-600 px-4 text-sm font-semibold text-teal-700 active:scale-95">
-                    {{ copied ? '✓' : 'Copiar' }}
+                    class="flex shrink-0 items-center gap-1.5 rounded-xl border border-teal-600 px-4 text-sm font-semibold text-teal-700 active:scale-95">
+                    <Icon name="copy" class="h-4 w-4" />
+                    {{ copied ? 'Copiado' : 'Copiar' }}
                 </button>
             </div>
             <p v-if="copied" class="mt-1 text-xs text-teal-700">Link copiado</p>
@@ -65,6 +67,7 @@ async function copyLink() {
 
         <a :href="whatsappUrl" target="_blank" rel="noopener"
             class="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3.5 text-base font-semibold text-white shadow-sm active:scale-[0.99]">
+            <Icon name="whatsapp" class="h-5 w-5" />
             Compartir por WhatsApp
         </a>
 
