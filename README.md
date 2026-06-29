@@ -27,30 +27,34 @@ seguimiento y la validación; **no reemplaza WhatsApp** (ahí se comparte el lin
 | Capacidad | Detalle |
 |-----------|---------|
 | **Auth del organizador** | Registro / login / logout (contraseña, sesión); login con rate limit |
-| **Crear evento** | Formulario mobile-first, división equitativa, link público con slug no adivinable |
-| **Dashboard** | `/events` — eventos del organizador, más recientes primero |
+| **Crear evento** | Formulario mobile-first, división equitativa, link público con slug no adivinable; comprobante del gasto opcional al crear |
+| **Dashboard** | `/events` — eventos del organizador, más recientes primero, con estado e iconos |
 | **Participante (sin login)** | Abre el link → se identifica (solo nombre) + sube voucher, en una sola pantalla; refleja eventos cerrados |
-| **Validación con IA** | `ValidateReceiptJob` asíncrono; drivers `FakeReceiptVision` (dev) y `AnthropicReceiptVision` (Claude vision); el veredicto lo decide un `ReceiptRuleEngine` determinista (monto + confianza). Si la IA falla → *en revisión*, nunca rechazo automático |
-| **Cola de revisión** | `/events/{slug}/review` — vouchers por revisar (imagen + lectura de IA), aprobar / rechazar / marcar efectivo, totales cobrado/pendiente |
+| **Validación del comprobante** | **Navegador**: OCR ligero (`tesseract.js`, bajo demanda) que avisa si la imagen no parece un voucher de Yape/Plin/transferencia (suave, no bloquea). **Servidor**: el método detectado debe estar entre los aceptados |
+| **Validación con IA** | `ValidateReceiptJob` asíncrono; drivers `FakeReceiptVision` (dev) y `AnthropicReceiptVision` (Claude vision); el veredicto lo decide un `ReceiptRuleEngine` determinista (monto + método + confianza). Si la IA falla → *en revisión*, nunca rechazo automático |
+| **Cola de revisión** | `/events/{slug}/review` — cola por revisar y **cualquier** voucher inspeccionable (imagen + lectura de IA), aprobar / rechazar / marcar efectivo, totales cobrado/pendiente |
 | **Recordatorios** | Links `wa.me` (al grupo y por participante pendiente) |
-| **Comprobante del gasto** | Evidencia del costo real del organizador (solo almacenamiento) |
+| **Comprobante del gasto** | Evidencia del costo real del organizador (solo almacenamiento), al crear el evento o desde la revisión |
 | **Cerrar / reabrir evento** | Bloquea nuevas subidas cuando está cerrado |
 
 Diferido a v2: división personalizada, pagos parciales/sobrepagos, detección de
 duplicados, teléfonos de participantes, IA sobre el comprobante del gasto,
-tiempo real, multimoneda. Ver [`docs/13`](docs/13-mvp-critique-and-simplification.md).
+tiempo real, multimoneda. Ver [`docs/13`](docs/13-mvp-critique-and-simplification.md)
+y la sección [Mejoras a futuro](#mejoras-a-futuro).
 
 ## Stack
 
-- **Backend:** Laravel 13 (PHP 8.3) · Eloquent · Queues / Jobs · Form Requests
-- **Frontend:** Inertia + Vue 3 · Tailwind CSS v4 (mobile-first)
+- **Backend:** Laravel 13 (PHP 8.3) · Eloquent · Queues / Jobs · Form Requests · Policies · Actions · Enums (PHP 8.1)
+- **Frontend:** Inertia + Vue 3 · Tailwind CSS v4 (mobile-first) · iconos SVG inline
 - **Base de datos:** SQLite (dev) · MySQL/RDS (prod)
 - **Almacenamiento:** disco privado local (dev) · S3 (prod) — los vouchers nunca son públicos
 - **IA:** Claude vision (`claude-opus-4-8`) para extracción de comprobantes
+- **Pruebas:** PHPUnit + PCOV (backend) · Vitest + Vue Test Utils + `@vitest/coverage-v8` (frontend)
+- **CI:** GitHub Actions (build + ambas suites + cobertura, en cada push/PR)
 
 ## Requisitos
 
-PHP 8.3+, Composer, Node 20+, npm.
+PHP 8.3+, Composer, Node 20+ (CI usa 22), npm.
 
 ## Instalación
 
@@ -104,16 +108,31 @@ RATE_LIMIT_LOGIN=10            # POST /login (por email+IP)
 QUEUE_CONNECTION=database      # 'sync' para correr la validación inline
 ```
 
-## Tests
+## Calidad: pruebas y cobertura
+
+| Capa | Comando | Tests | Cobertura | Piso CI |
+|------|---------|-------|-----------|---------|
+| **Backend** (PHPUnit) | `php artisan test` | 106 | **99.8 %** líneas (PCOV) | `--min=90` |
+| **Frontend** (Vitest) | `npm run test:js` | 40 | **97.9 %** líneas (v8) | `lines ≥ 90` |
 
 ```bash
-php artisan test
+php artisan test                 # backend (SQLite en memoria, sin setup)
+npm run test:js                  # frontend (jsdom)
+npm run test:js:coverage         # frontend + reporte de cobertura
 ```
 
-**66 tests** (feature + unit) usando SQLite en memoria — sin configuración previa.
-Cubren el flujo completo: auth, creación de evento, identificación + subida,
-el motor de reglas de IA (vía data providers), la cola de revisión, recordatorios,
-comprobantes de gasto y el endurecimiento (rate limiting, cierre de evento).
+Cubren el flujo completo de punta a punta: auth, creación de evento, identificación
++ subida, el motor de reglas de IA, la cola de revisión, recordatorios, comprobantes
+de gasto, endurecimiento (rate limiting, cierre) y **tests de integración** que
+ejercitan el pipeline real (cola + job + reglas) sin mocks
+(`tests/Feature/Flows/`). En el frontend, cada componente Vue tiene pruebas de
+render e interacción con Inertia mockeado.
+
+## Integración continua
+
+[GitHub Actions](.github/workflows/ci.yml) corre en cada push y PR:
+`npm run test:js:coverage` → `npm run build` → `php artisan test --coverage --min=90`.
+El badge arriba refleja el estado de `main`.
 
 ## Cómo funciona (flujo)
 
@@ -134,6 +153,59 @@ Organizador          Sistema / IA                 Participante
 La IA **solo extrae** (monto, fecha, método, destinatario, confianza); el veredicto
 lo decide un motor de reglas determinista y unitariamente testeado. El organizador
 siempre puede sobrescribir la decisión de la IA.
+
+## Arquitectura y decisiones
+
+- **IA con costura intercambiable.** `ReceiptVision` es un contrato con dos
+  implementaciones: `FakeReceiptVision` (por defecto, dev/test, determinista) y
+  `AnthropicReceiptVision` (Claude vision real). Se elige por `AI_DRIVER`.
+- **El veredicto es determinista.** El modelo solo *extrae*; `ReceiptRuleEngine`
+  (puro y testeado) decide `validated` / `needs_review` por monto + método +
+  confianza. Falla de IA → revisión, nunca rechazo automático.
+- **Autorización con Policies.** `EventPolicy::manage` centraliza “el organizador
+  solo gestiona sus eventos” (`$this->authorize('manage', $event)`).
+- **Storage privado tras un gateway.** `ReceiptStorage` es el único punto de
+  acceso al disco de vouchers/gastos (nunca público; URLs por streaming autorizado).
+- **Enums de dominio.** Estados/método/razón son enums respaldados
+  (`App\Enums\*`) con casts en los modelos — sin strings mágicos.
+- **Acciones reutilizables.** p. ej. `StoreExpenseReceipt` comparte la lógica de
+  guardar el comprobante entre el alta de evento y la revisión.
+
+## Capturas
+
+> Los mockups de cada pantalla (crear evento, landing del participante, subida,
+> cola de revisión) están en
+> [`docs/04-ux-principles.md`](docs/04-ux-principles.md). Las capturas reales
+> irán en `docs/screenshots/` — se pueden generar automáticamente con un
+> navegador headless (Playwright) sobre la app corriendo en dev.
+
+<!--
+![Crear evento](docs/screenshots/create.png)
+![Landing del participante](docs/screenshots/public-event.png)
+![Cola de revisión](docs/screenshots/review.png)
+-->
+
+## Mejoras a futuro
+
+Producto (ver detalle en [`docs/13`](docs/13-mvp-critique-and-simplification.md)):
+
+- División **personalizada** por participante (hoy solo equitativa).
+- **Pagos parciales y sobrepagos** (acumular abonos hacia la parte).
+- **Detección de duplicados** (mismo voucher subido dos veces).
+- **IA sobre el comprobante del gasto** + alerta si el total no cuadra.
+- **Recordatorios automáticos** (WhatsApp Business API) en vez de solo `wa.me`.
+- **Tiempo real** (WebSockets/Echo) en vez de recargar para ver el veredicto.
+- **Multimoneda**, **multi-organizador**, reembolsos.
+
+Plataforma / calidad:
+
+- **Despliegue** en un host con PHP (Render / Railway / Fly.io / Laravel Forge) —
+  Laravel no corre como sitio estático.
+- **Capturas automáticas** y **E2E** con Playwright (incl. el flujo OCR real, que
+  necesita un canvas de verdad).
+- **Branch protection** en `main` exigiendo el check verde de CI.
+- Subir cobertura de **funciones/branches** del frontend; auditoría de
+  **accesibilidad** e **i18n**.
 
 ## Documentación
 
