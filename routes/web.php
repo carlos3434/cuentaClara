@@ -6,6 +6,7 @@ use App\Http\Controllers\Organizer\EventController as OrganizerEventController;
 use App\Http\Controllers\Organizer\ExpenseController;
 use App\Http\Controllers\Organizer\ReviewController;
 use App\Http\Controllers\Public\EventController as PublicEventController;
+use App\Http\Controllers\Public\ExpenseController as PublicExpenseController;
 use App\Http\Controllers\Public\ReceiptController as PublicReceiptController;
 use Illuminate\Support\Facades\Route;
 
@@ -58,3 +59,4 @@ Route::get('/e/{event}', [PublicEventController::class, 'show'])->name('public.e
 Route::post('/e/{event}/receipts', [PublicReceiptController::class, 'store'])
     ->middleware('throttle:uploads')
     ->name('public.receipts.store');
+Route::get('/e/{event}/expenses/{expense}/image', [PublicExpenseController::class, 'image'])->name('public.expenses.image');

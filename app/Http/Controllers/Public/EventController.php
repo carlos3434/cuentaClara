@@ -41,6 +41,13 @@ class EventController extends Controller
                 'name' => $participant->name,
                 'badge' => $participant->badge(),
             ] : null,
+            // The organizer's own expense receipts, so the participant can verify
+            // the real cost before paying.
+            'expenses' => $event->expenses()->latest('id')->get()->map(fn ($e) => [
+                'id' => $e->id,
+                'note' => $e->note,
+                'image_url' => route('public.expenses.image', [$event, $e]),
+            ])->values(),
         ]);
     }
 }

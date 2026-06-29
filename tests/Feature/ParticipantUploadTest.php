@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Event;
+use App\Models\EventExpense;
 use App\Models\Participant;
 use App\Models\Receipt;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -143,6 +144,38 @@ class ParticipantUploadTest extends TestCase
         $this->withCookie("cc_p_{$event->id}", $participant->session_token)
             ->get("/e/{$event->slug}")
             ->assertInertia(fn (Assert $page) => $page->missing('participant.session_token'));
+    }
+
+    public function test_public_page_exposes_the_organizer_expense_receipts(): void
+    {
+        $event = Event::factory()->create();
+        $expense = EventExpense::factory()->for($event)->create(['note' => 'Alquiler de cancha']);
+
+        $this->get("/e/{$event->slug}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('expenses', 1)
+                ->where('expenses.0.note', 'Alquiler de cancha')
+                ->where('expenses.0.image_url', route('public.expenses.image', [$event, $expense])));
+    }
+
+    public function test_anyone_can_view_an_expense_receipt_via_the_public_link(): void
+    {
+        Storage::fake($this->disk());
+        $event = Event::factory()->create();
+        Storage::disk($this->disk())->put('events/1/expenses/e.jpg', 'binary');
+        $expense = EventExpense::factory()->for($event)->create(['s3_key' => 'events/1/expenses/e.jpg']);
+
+        // No authentication — participants aren't logged in.
+        $this->get("/e/{$event->slug}/expenses/{$expense->id}/image")->assertOk();
+    }
+
+    public function test_expense_image_is_404_for_a_mismatched_event(): void
+    {
+        $event = Event::factory()->create();
+        $expense = EventExpense::factory()->for(Event::factory())->create();
+
+        $this->get("/e/{$event->slug}/expenses/{$expense->id}/image")->assertNotFound();
     }
 
     public function test_uploads_are_rejected_for_non_active_events(): void

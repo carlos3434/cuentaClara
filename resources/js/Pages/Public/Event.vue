@@ -6,6 +6,7 @@ import Icon from '../../Components/Icon.vue';
 const props = defineProps({
     event: Object,
     participant: { type: Object, default: null },
+    expenses: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -29,6 +30,7 @@ const badge = computed(() =>
 );
 
 const shareSoles = computed(() => (props.event.share_cents / 100).toFixed(2));
+const totalSoles = computed(() => (props.event.total_cents / 100).toFixed(2));
 
 function formatDate(iso) {
     const [y, m, d] = iso.split('-');
@@ -162,6 +164,22 @@ function submit() {
                     <dd class="font-medium">{{ formatDate(event.pay_deadline) }}</dd>
                 </div>
             </dl>
+        </section>
+
+        <!-- Organizer's expense receipt: the participant verifies the real cost -->
+        <section v-if="expenses.length" class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-sm font-semibold">Comprobante del organizador</p>
+            <p class="mt-1 text-sm text-slate-500">
+                El organizador pagó <span class="font-medium">S/ {{ totalSoles }}</span> en total.
+                Verifica que tu parte (S/ {{ shareSoles }}) sea correcta.
+            </p>
+            <div class="mt-3 space-y-3">
+                <figure v-for="e in expenses" :key="e.id">
+                    <img :src="e.image_url" :alt="e.note || 'Comprobante del gasto'"
+                        class="max-h-72 w-full rounded-lg bg-slate-50 object-contain" />
+                    <figcaption v-if="e.note" class="mt-1 text-sm text-slate-500">{{ e.note }}</figcaption>
+                </figure>
+            </div>
         </section>
 
         <!-- Closed event: no more uploads -->

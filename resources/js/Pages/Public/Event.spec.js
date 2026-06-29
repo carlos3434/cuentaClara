@@ -57,6 +57,20 @@ describe('Public/Event', () => {
         expect(w.text()).toContain('Este evento está cerrado');
     });
 
+    it('shows the organizer expense receipt so the participant can verify', () => {
+        const w = mount(Event, {
+            props: {
+                event: baseEvent,
+                participant: { name: 'José', badge: 'pending' },
+                expenses: [{ id: 1, note: 'Alquiler de cancha', image_url: 'http://x/exp/1' }],
+            },
+        });
+
+        expect(w.text()).toContain('Comprobante del organizador');
+        expect(w.text()).toContain('S/ 480.00');   // total cost
+        expect(w.findAll('img').some((i) => i.attributes('src') === 'http://x/exp/1')).toBe(true);
+    });
+
     it('renders the participant status badge', () => {
         const w = mount(Event, {
             props: { event: baseEvent, participant: { name: 'José', badge: 'confirmed' } },
