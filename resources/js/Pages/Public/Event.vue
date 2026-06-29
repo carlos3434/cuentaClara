@@ -187,7 +187,7 @@ function submit() {
                 <label for="image"
                     class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-8 text-center">
                     <template v-if="!preview">
-                        <span class="text-3xl">📷</span>
+                        <Icon name="camera" class="h-8 w-8 text-slate-400" />
                         <span class="mt-2 text-sm font-medium text-slate-600">Tomar foto o elegir de galería</span>
                     </template>
                     <img v-else :src="preview" alt="Vista previa del voucher" class="max-h-56 rounded-lg" />

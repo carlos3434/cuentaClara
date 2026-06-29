@@ -181,11 +181,13 @@ function reopenEvent() {
 
                     <div class="mt-4 flex gap-2">
                         <button type="button" @click="approve(r)"
-                            class="flex-1 rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white active:scale-[0.99]">
+                            class="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white active:scale-[0.99]">
+                            <Icon name="check-circle" class="h-4 w-4" />
                             Aprobar
                         </button>
                         <button type="button" @click="reject(r)"
-                            class="flex-1 rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 active:scale-[0.99]">
+                            class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 active:scale-[0.99]">
+                            <Icon name="x-circle" class="h-4 w-4" />
                             Rechazar
                         </button>
                     </div>
@@ -249,11 +251,13 @@ function reopenEvent() {
                         </dl>
                         <div class="mt-3 flex gap-2">
                             <button type="button" @click="approve(p.receipt)"
-                                class="flex-1 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white active:scale-[0.99]">
+                                class="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white active:scale-[0.99]">
+                                <Icon name="check-circle" class="h-4 w-4" />
                                 Confirmar pago
                             </button>
                             <button type="button" @click="reject(p.receipt)"
-                                class="flex-1 rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 active:scale-[0.99]">
+                                class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 active:scale-[0.99]">
+                                <Icon name="x-circle" class="h-4 w-4" />
                                 Rechazar
                             </button>
                         </div>
