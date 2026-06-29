@@ -23,7 +23,8 @@ const reasonLabels = {
 };
 const statusBadge = {
     paid: { label: 'Pagó', cls: 'bg-teal-100 text-teal-800', icon: 'check-circle' },
-    review: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800', icon: 'clock' },
+    submitted: { label: 'Validando', cls: 'bg-amber-100 text-amber-800', icon: 'clock' },
+    review: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800', icon: 'alert' },
     rejected: { label: 'Rechazado', cls: 'bg-red-100 text-red-800', icon: 'x-circle' },
     pending: { label: 'Pendiente', cls: 'bg-slate-100 text-slate-600', icon: 'clock' },
 };

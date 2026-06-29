@@ -106,6 +106,20 @@ class ReviewQueueTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('participants.0.receipt.image_url', null));
     }
 
+    public function test_an_upload_awaiting_validation_shows_as_submitted(): void
+    {
+        $owner = User::factory()->create();
+        $event = Event::factory()->create(['user_id' => $owner->id]);
+        $participant = Participant::factory()->for($event)->create(['name' => 'Nico']);
+        Receipt::factory()->for($event)->for($participant)->create(['status' => 'submitted']);
+
+        $this->actingAs($owner)
+            ->get("/events/{$event->slug}/review")
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('participants.0.status', 'submitted')   // not 'pending'
+                ->where('summary.review_count', 0));             // not in the AI queue
+    }
+
     public function test_organizer_can_approve_a_receipt(): void
     {
         [$owner, $event, $receipt] = $this->reviewableReceipt();

@@ -43,6 +43,7 @@ class ReviewController extends Controller
                 : ($latest ? match ($latest->status) {
                     ReceiptStatus::NeedsReview => 'review',
                     ReceiptStatus::Rejected => 'rejected',
+                    ReceiptStatus::Submitted => 'submitted', // subió, esperando validación de IA
                     default => 'pending',
                 } : 'pending');
 

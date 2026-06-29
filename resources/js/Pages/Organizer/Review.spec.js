@@ -81,6 +81,19 @@ describe('Organizer/Review', () => {
         expect(w.text()).toContain('Confirmar pago');
     });
 
+    it('shows "Validando" for an upload awaiting validation', () => {
+        const w = mount(Review, {
+            props: makeProps({
+                participants: [{
+                    id: 7, name: 'Nico', status: 'submitted',
+                    receipt: { id: 8, image_url: 'http://x/img/8', amount_cents: 4000, date: '2026-06-24', method: 'yape', recipient: 'Caro', confidence: 0.95, status: 'submitted', reason_code: null },
+                }],
+            }),
+        });
+
+        expect(w.text()).toContain('Validando');
+    });
+
     it('approves a receipt through the router', async () => {
         const w = mount(Review, { props: makeProps() });
 
