@@ -57,11 +57,11 @@ class ParticipantUploadTest extends TestCase
         $participant = Participant::firstOrFail();
         $this->assertSame('José', $participant->name);
         $this->assertSame($event->id, $participant->event_id);
-        $this->assertSame('pending', $participant->status);
+        $this->assertSame('pending', $participant->status->value);
 
         $receipt = Receipt::firstOrFail();
         $this->assertSame($participant->id, $receipt->participant_id);
-        $this->assertSame('submitted', $receipt->status);
+        $this->assertSame('submitted', $receipt->status->value);
         $this->assertNotNull($receipt->s3_key);
 
         Storage::disk($this->disk())->assertExists($receipt->s3_key);

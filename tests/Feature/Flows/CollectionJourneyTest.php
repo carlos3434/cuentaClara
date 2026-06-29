@@ -44,8 +44,8 @@ class CollectionJourneyTest extends TestCase
         $this->upload($event, 'José')->assertRedirect("/e/{$event->slug}");
 
         $receipt = Receipt::firstOrFail();
-        $this->assertSame('validated', $receipt->status);
-        $this->assertSame('ai', $receipt->decided_by);
+        $this->assertSame('validated', $receipt->status->value);
+        $this->assertSame('ai', $receipt->decided_by->value);
 
         // Participant revisiting the link sees their payment confirmed.
         $participant = Participant::firstOrFail();
@@ -73,8 +73,8 @@ class CollectionJourneyTest extends TestCase
         $this->upload($event, 'Lucía')->assertRedirect();
 
         $receipt = Receipt::firstOrFail();
-        $this->assertSame('needs_review', $receipt->status);
-        $this->assertSame('not_a_receipt', $receipt->reason_code);
+        $this->assertSame('needs_review', $receipt->status->value);
+        $this->assertSame('not_a_receipt', $receipt->reason_code->value);
 
         // Shows in the review queue, nothing collected yet.
         $this->actingAs($organizer)
@@ -89,8 +89,8 @@ class CollectionJourneyTest extends TestCase
             ->assertRedirect();
 
         $receipt->refresh();
-        $this->assertSame('validated', $receipt->status);
-        $this->assertSame('organizer', $receipt->decided_by);
+        $this->assertSame('validated', $receipt->status->value);
+        $this->assertSame('organizer', $receipt->decided_by->value);
 
         $this->actingAs($organizer)
             ->get("/events/{$event->slug}/review")
@@ -106,14 +106,14 @@ class CollectionJourneyTest extends TestCase
 
         $this->upload($event, 'Marco'); // 1000 ≠ 4000 → needs_review (amount_mismatch)
         $receipt = Receipt::firstOrFail();
-        $this->assertSame('needs_review', $receipt->status);
+        $this->assertSame('needs_review', $receipt->status->value);
 
         $this->actingAs($organizer)
             ->post("/events/{$event->slug}/receipts/{$receipt->id}/reject")
             ->assertRedirect();
 
         $receipt->refresh();
-        $this->assertSame('rejected', $receipt->status);
+        $this->assertSame('rejected', $receipt->status->value);
 
         // Participant sees "Revisar"; nothing collected.
         $participant = Participant::firstOrFail();

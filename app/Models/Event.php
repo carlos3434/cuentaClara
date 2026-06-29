@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EventStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -54,6 +55,7 @@ class Event extends Model
         'total_cents' => 'integer',
         'headcount' => 'integer',
         'share_cents' => 'integer',
+        'status' => EventStatus::class,
     ];
 
     /**

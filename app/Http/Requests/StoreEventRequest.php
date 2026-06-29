@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -29,7 +30,7 @@ class StoreEventRequest extends FormRequest
             'recipient_name' => ['required', 'string', 'max:120'],
             'recipient_handle' => ['nullable', 'string', 'max:60'],
             'accepted_methods' => ['required', 'array', 'min:1'],
-            'accepted_methods.*' => [Rule::in(['yape', 'plin', 'bank_transfer'])],
+            'accepted_methods.*' => [Rule::in(PaymentMethod::selectableValues())],
             'pay_deadline' => ['required', 'date', 'after_or_equal:today'],
             // Optional: the organizer's own cost evidence, uploaded at creation.
             'expense_image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,heic,heif', 'max:'.config('cuentaclara.receipts_max_kb')],

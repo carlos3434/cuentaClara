@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ReceiptStatus;
 use App\Models\Event;
 use App\Models\Participant;
 use App\Models\Receipt;
@@ -23,7 +24,7 @@ class ReceiptFactory extends Factory
             'original_filename' => 'voucher.jpg',
             'mime_type' => 'image/jpeg',
             'size_bytes' => $this->faker->numberBetween(50_000, 2_000_000),
-            'status' => 'submitted',
+            'status' => ReceiptStatus::Submitted,
             'note' => null,
         ];
     }

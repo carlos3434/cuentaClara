@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ParticipantStatus;
+use App\Enums\ReceiptStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +22,10 @@ class Participant extends Model
 
     protected $hidden = [
         'session_token',
+    ];
+
+    protected $casts = [
+        'status' => ParticipantStatus::class,
     ];
 
     public function event(): BelongsTo
@@ -48,8 +54,8 @@ class Participant extends Model
         }
 
         return match ($latest->status) {
-            'validated', 'cash' => 'confirmed',
-            'rejected' => 'review',
+            ReceiptStatus::Validated, ReceiptStatus::Cash => 'confirmed',
+            ReceiptStatus::Rejected => 'review',
             default => 'pending',
         };
     }

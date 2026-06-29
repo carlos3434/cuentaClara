@@ -2,6 +2,8 @@
 
 namespace App\Services\Ai;
 
+use App\Enums\ReasonCode;
+use App\Enums\ReceiptStatus;
 use App\Models\Event;
 
 /**
@@ -15,31 +17,44 @@ use App\Models\Event;
 class ReceiptRuleEngine
 {
     /**
-     * @return array{verdict: string, reason_code: ?string}
+     * @return array{verdict: ReceiptStatus, reason_code: ?ReasonCode}
      */
     public function decide(Event $event, ReceiptExtraction $x): array
     {
         if (! $x->isReceipt) {
-            return $this->review('not_a_receipt');
+            return $this->review(ReasonCode::NotAReceipt);
         }
 
         if ($x->amountCents === null) {
-            return $this->review('amount_unreadable');
+            return $this->review(ReasonCode::AmountUnreadable);
         }
 
         if (! $this->amountMatches($event, $x->amountCents)) {
-            return $this->review('amount_mismatch');
+            return $this->review(ReasonCode::AmountMismatch);
         }
 
         if (! $this->methodAccepted($event, $x->method)) {
-            return $this->review('method_not_accepted');
+            return $this->review(ReasonCode::MethodNotAccepted);
         }
 
         if ($x->confidence < (float) config('cuentaclara.ai.confidence_threshold')) {
-            return $this->review('low_confidence');
+            return $this->review(ReasonCode::LowConfidence);
         }
 
-        return ['verdict' => 'validated', 'reason_code' => null];
+        return ['verdict' => ReceiptStatus::Validated, 'reason_code' => null];
+    }
+
+    /**
+     * A payment matches if it covers the share, allowing for the rounding
+     * remainder of the equal split (one participant may owe a few extra cents).
+     * Underpayment (partial) and overpayment are deferred to v2 → needs_review.
+     */
+    private function amountMatches(Event $event, int $amountCents): bool
+    {
+        $share = $event->share_cents;
+        $remainder = max(0, $event->total_cents - $share * $event->headcount);
+
+        return $amountCents >= $share && $amountCents <= $share + $remainder;
     }
 
     /**
@@ -60,23 +75,10 @@ class ReceiptRuleEngine
     }
 
     /**
-     * A payment matches if it covers the share, allowing for the rounding
-     * remainder of the equal split (one participant may owe a few extra cents).
-     * Underpayment (partial) and overpayment are deferred to v2 → needs_review.
+     * @return array{verdict: ReceiptStatus, reason_code: ReasonCode}
      */
-    private function amountMatches(Event $event, int $amountCents): bool
+    private function review(ReasonCode $reason): array
     {
-        $share = $event->share_cents;
-        $remainder = max(0, $event->total_cents - $share * $event->headcount);
-
-        return $amountCents >= $share && $amountCents <= $share + $remainder;
-    }
-
-    /**
-     * @return array{verdict: string, reason_code: string}
-     */
-    private function review(string $reason): array
-    {
-        return ['verdict' => 'needs_review', 'reason_code' => $reason];
+        return ['verdict' => ReceiptStatus::NeedsReview, 'reason_code' => $reason];
     }
 }

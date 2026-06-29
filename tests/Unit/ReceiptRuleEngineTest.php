@@ -29,8 +29,8 @@ class ReceiptRuleEngineTest extends TestCase
 
         $decision = (new ReceiptRuleEngine())->decide($event, $this->extraction($amount, $isReceipt, $confidence));
 
-        $this->assertSame($verdict, $decision['verdict']);
-        $this->assertSame($reason, $decision['reason_code']);
+        $this->assertSame($verdict, $decision['verdict']->value);
+        $this->assertSame($reason, $decision['reason_code']?->value);
     }
 
     public static function verdictCases(): array
@@ -53,9 +53,9 @@ class ReceiptRuleEngineTest extends TestCase
         $event = new Event(['share_cents' => 33, 'total_cents' => 100, 'headcount' => 3]);
         $engine = new ReceiptRuleEngine();
 
-        $this->assertSame('validated', $engine->decide($event, $this->extraction(33, true, 0.95))['verdict']);
-        $this->assertSame('validated', $engine->decide($event, $this->extraction(34, true, 0.95))['verdict']);
-        $this->assertSame('needs_review', $engine->decide($event, $this->extraction(35, true, 0.95))['verdict']);
+        $this->assertSame('validated', $engine->decide($event, $this->extraction(33, true, 0.95))['verdict']->value);
+        $this->assertSame('validated', $engine->decide($event, $this->extraction(34, true, 0.95))['verdict']->value);
+        $this->assertSame('needs_review', $engine->decide($event, $this->extraction(35, true, 0.95))['verdict']->value);
     }
 
     public function test_amount_is_checked_before_confidence(): void
@@ -65,7 +65,7 @@ class ReceiptRuleEngineTest extends TestCase
 
         $decision = (new ReceiptRuleEngine())->decide($event, $this->extraction(3000, true, 0.10));
 
-        $this->assertSame('amount_mismatch', $decision['reason_code']);
+        $this->assertSame('amount_mismatch', $decision['reason_code']->value);
     }
 
     public function test_flags_a_method_the_organizer_does_not_accept(): void
@@ -74,15 +74,15 @@ class ReceiptRuleEngineTest extends TestCase
 
         $decision = (new ReceiptRuleEngine())->decide($event, $this->extraction(4000, true, 0.95, 'plin'));
 
-        $this->assertSame('needs_review', $decision['verdict']);
-        $this->assertSame('method_not_accepted', $decision['reason_code']);
+        $this->assertSame('needs_review', $decision['verdict']->value);
+        $this->assertSame('method_not_accepted', $decision['reason_code']->value);
     }
 
     public function test_allows_an_accepted_method(): void
     {
         $event = new Event(['share_cents' => 4000, 'total_cents' => 48000, 'headcount' => 12, 'accepted_methods' => ['yape', 'plin']]);
 
-        $this->assertSame('validated', (new ReceiptRuleEngine())->decide($event, $this->extraction(4000, true, 0.95, 'plin'))['verdict']);
+        $this->assertSame('validated', (new ReceiptRuleEngine())->decide($event, $this->extraction(4000, true, 0.95, 'plin'))['verdict']->value);
     }
 
     public function test_does_not_block_when_method_is_unreadable(): void
@@ -90,7 +90,7 @@ class ReceiptRuleEngineTest extends TestCase
         $event = new Event(['share_cents' => 4000, 'total_cents' => 48000, 'headcount' => 12, 'accepted_methods' => ['yape']]);
 
         // is_payment_receipt already vouches it's a receipt; null method shouldn't block.
-        $this->assertSame('validated', (new ReceiptRuleEngine())->decide($event, $this->extraction(4000, true, 0.95, null))['verdict']);
+        $this->assertSame('validated', (new ReceiptRuleEngine())->decide($event, $this->extraction(4000, true, 0.95, null))['verdict']->value);
     }
 
     private function extraction(?int $amountCents, bool $isReceipt, float $confidence, ?string $method = 'yape'): ReceiptExtraction

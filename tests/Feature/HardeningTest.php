@@ -61,10 +61,10 @@ class HardeningTest extends TestCase
         $event = Event::factory()->create(['user_id' => $owner->id, 'status' => 'active']);
 
         $this->actingAs($owner)->post("/events/{$event->slug}/close")->assertRedirect();
-        $this->assertSame('closed', $event->fresh()->status);
+        $this->assertSame('closed', $event->fresh()->status->value);
 
         $this->actingAs($owner)->post("/events/{$event->slug}/reopen")->assertRedirect();
-        $this->assertSame('active', $event->fresh()->status);
+        $this->assertSame('active', $event->fresh()->status->value);
     }
 
     public function test_another_organizer_cannot_close_your_event(): void

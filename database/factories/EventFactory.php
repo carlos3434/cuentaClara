@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\EventStatus;
 use App\Models\Event;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -30,7 +31,7 @@ class EventFactory extends Factory
             'recipient_handle' => $this->faker->numerify('9########'),
             'accepted_methods' => ['yape', 'plin'],
             'pay_deadline' => now()->addDays(5)->toDateString(),
-            'status' => 'active',
+            'status' => EventStatus::Active,
         ];
     }
 }

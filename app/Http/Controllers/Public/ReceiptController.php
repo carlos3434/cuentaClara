@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Public;
 
+use App\Enums\EventStatus;
+use App\Enums\ParticipantStatus;
+use App\Enums\ReceiptStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Public\Concerns\ResolvesParticipant;
 use App\Jobs\ValidateReceiptJob;
@@ -24,7 +27,7 @@ class ReceiptController extends Controller
      */
     public function store(Request $request, Event $event, ReceiptStorage $storage): RedirectResponse
     {
-        abort_if($event->status !== 'active', 404);
+        abort_if($event->status !== EventStatus::Active, 404);
 
         $participant = $this->currentParticipant($request, $event);
 
@@ -49,7 +52,7 @@ class ReceiptController extends Controller
             $participant = $event->participants()->create([
                 'name' => $validated['name'],
                 'session_token' => Str::random(48),
-                'status' => 'pending',
+                'status' => ParticipantStatus::Pending,
             ]);
 
             // Remember this participant for ~6 months on this device.
@@ -67,7 +70,7 @@ class ReceiptController extends Controller
             'original_filename' => $file->getClientOriginalName(),
             'mime_type' => $file->getClientMimeType(),
             'size_bytes' => $file->getSize(),
-            'status' => 'submitted',
+            'status' => ReceiptStatus::Submitted,
         ]);
 
         // Hand off to AI validation (async). Participant isn't blocked on it.

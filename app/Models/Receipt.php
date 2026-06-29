@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\DecidedBy;
+use App\Enums\ReasonCode;
+use App\Enums\ReceiptStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -38,6 +41,9 @@ class Receipt extends Model
         'confidence' => 'float',
         'ai_raw' => 'array',
         'decided_at' => 'datetime',
+        'status' => ReceiptStatus::class,
+        'reason_code' => ReasonCode::class,
+        'decided_by' => DecidedBy::class,
     ];
 
     public function event(): BelongsTo

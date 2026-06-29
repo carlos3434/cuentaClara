@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ParticipantStatus;
 use App\Models\Event;
 use App\Models\Participant;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -20,7 +21,7 @@ class ParticipantFactory extends Factory
             'event_id' => Event::factory(),
             'name' => $this->faker->firstName(),
             'session_token' => Str::random(48),
-            'status' => 'pending',
+            'status' => ParticipantStatus::Pending,
         ];
     }
 }

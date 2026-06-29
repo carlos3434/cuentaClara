@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Organizer;
 
 use App\Actions\Events\StoreExpenseReceipt;
+use App\Enums\EventStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
 use App\Models\Event;
@@ -71,7 +72,7 @@ class EventController extends Controller
             'recipient_handle' => $data['recipient_handle'] ?? null,
             'accepted_methods' => array_values($data['accepted_methods']),
             'pay_deadline' => $data['pay_deadline'],
-            'status' => 'active',
+            'status' => EventStatus::Active,
         ]);
 
         // Optional expense receipt uploaded alongside the event.
@@ -89,7 +90,7 @@ class EventController extends Controller
     {
         $this->authorize('manage', $event);
 
-        $event->update(['status' => 'closed']);
+        $event->update(['status' => EventStatus::Closed]);
 
         return back();
     }
@@ -101,7 +102,7 @@ class EventController extends Controller
     {
         $this->authorize('manage', $event);
 
-        $event->update(['status' => 'active']);
+        $event->update(['status' => EventStatus::Active]);
 
         return back();
     }

@@ -2,6 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Enums\DecidedBy;
+use App\Enums\ReasonCode;
+use App\Enums\ReceiptStatus;
 use App\Models\Receipt;
 use App\Services\Ai\Contracts\ReceiptVision;
 use App\Services\Ai\ReceiptRuleEngine;
@@ -24,7 +27,7 @@ class ValidateReceiptJob implements ShouldQueue
         $receipt = $this->receipt->fresh();
 
         // Don't re-decide a receipt a human already ruled on.
-        if (! $receipt || $receipt->decided_by === 'organizer') {
+        if (! $receipt || $receipt->decided_by === DecidedBy::Organizer) {
             return;
         }
 
@@ -36,8 +39,8 @@ class ValidateReceiptJob implements ShouldQueue
             'receipt_id' => $receipt->id,
             'event_id' => $receipt->event_id,
             'driver' => config('cuentaclara.ai.driver'),
-            'verdict' => $decision['verdict'],
-            'reason_code' => $decision['reason_code'],
+            'verdict' => $decision['verdict']->value,
+            'reason_code' => $decision['reason_code']?->value,
             'confidence' => $extraction->confidence,
             'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ]);
@@ -53,7 +56,7 @@ class ValidateReceiptJob implements ShouldQueue
             'confidence' => $extraction->confidence,
             'ai_explanation' => $extraction->explanation,
             'ai_raw' => $extraction->raw,
-            'decided_by' => 'ai',
+            'decided_by' => DecidedBy::Ai,
             'decided_at' => now(),
         ]);
     }
@@ -70,8 +73,8 @@ class ValidateReceiptJob implements ShouldQueue
         ]);
 
         $this->receipt->fresh()?->update([
-            'status' => 'needs_review',
-            'reason_code' => 'ai_unavailable',
+            'status' => ReceiptStatus::NeedsReview,
+            'reason_code' => ReasonCode::AiUnavailable,
         ]);
     }
 }

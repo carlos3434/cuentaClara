@@ -35,8 +35,8 @@ class ValidateReceiptTest extends TestCase
         (new ValidateReceiptJob($receipt))->handle(app(ReceiptVision::class), new ReceiptRuleEngine());
 
         $receipt->refresh();
-        $this->assertSame('validated', $receipt->status);
-        $this->assertSame('ai', $receipt->decided_by);
+        $this->assertSame('validated', $receipt->status->value);
+        $this->assertSame('ai', $receipt->decided_by->value);
         $this->assertSame(4000, $receipt->extracted_amount_cents);
         $this->assertNotNull($receipt->decided_at);
         $this->assertNull($receipt->reason_code);
@@ -51,8 +51,8 @@ class ValidateReceiptTest extends TestCase
         (new ValidateReceiptJob($receipt))->handle(app(ReceiptVision::class), new ReceiptRuleEngine());
 
         $receipt->refresh();
-        $this->assertSame('needs_review', $receipt->status);
-        $this->assertSame('amount_mismatch', $receipt->reason_code);
+        $this->assertSame('needs_review', $receipt->status->value);
+        $this->assertSame('amount_mismatch', $receipt->reason_code->value);
     }
 
     public function test_job_does_not_override_an_organizer_decision(): void
@@ -65,8 +65,8 @@ class ValidateReceiptTest extends TestCase
         (new ValidateReceiptJob($receipt))->handle(app(ReceiptVision::class), new ReceiptRuleEngine());
 
         $receipt->refresh();
-        $this->assertSame('validated', $receipt->status);
-        $this->assertSame('organizer', $receipt->decided_by);
+        $this->assertSame('validated', $receipt->status->value);
+        $this->assertSame('organizer', $receipt->decided_by->value);
     }
 
     public function test_ai_failure_routes_to_review_never_rejects(): void
@@ -76,8 +76,8 @@ class ValidateReceiptTest extends TestCase
         (new ValidateReceiptJob($receipt))->failed(new RuntimeException('AI down'));
 
         $receipt->refresh();
-        $this->assertSame('needs_review', $receipt->status);
-        $this->assertSame('ai_unavailable', $receipt->reason_code);
+        $this->assertSame('needs_review', $receipt->status->value);
+        $this->assertSame('ai_unavailable', $receipt->reason_code->value);
     }
 
     // --- Dispatch on upload ---------------------------------------------

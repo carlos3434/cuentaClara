@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Organizer;
 
+use App\Enums\DecidedBy;
+use App\Enums\ReasonCode;
+use App\Enums\ReceiptStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Participant;
@@ -14,7 +17,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReviewController extends Controller
 {
-    private const PAID = ['validated', 'cash'];
+    private const PAID = [ReceiptStatus::Validated, ReceiptStatus::Cash];
 
     /**
      * Per-event review hub: the needs-review queue + participant roster +
@@ -26,7 +29,7 @@ class ReviewController extends Controller
 
         $event->load([
             'participants.receipts' => fn ($q) => $q->latest('id'),
-            'receipts' => fn ($q) => $q->where('status', 'needs_review')->latest('id'),
+            'receipts' => fn ($q) => $q->where('status', ReceiptStatus::NeedsReview->value)->latest('id'),
             'receipts.participant',
             'expenses' => fn ($q) => $q->latest('id'),
         ]);
@@ -38,8 +41,8 @@ class ReviewController extends Controller
             $status = $paid
                 ? 'paid'
                 : ($latest ? match ($latest->status) {
-                    'needs_review' => 'review',
-                    'rejected' => 'rejected',
+                    ReceiptStatus::NeedsReview => 'review',
+                    ReceiptStatus::Rejected => 'rejected',
                     default => 'pending',
                 } : 'pending');
 
@@ -107,7 +110,7 @@ class ReviewController extends Controller
     public function approve(Event $event, Receipt $receipt): RedirectResponse
     {
         $this->authorizeReceipt($event, $receipt);
-        $this->decide($receipt, 'validated', null);
+        $this->decide($receipt, ReceiptStatus::Validated, null);
 
         return back();
     }
@@ -115,7 +118,7 @@ class ReviewController extends Controller
     public function reject(Event $event, Receipt $receipt): RedirectResponse
     {
         $this->authorizeReceipt($event, $receipt);
-        $this->decide($receipt, 'rejected', 'organizer_rejected');
+        $this->decide($receipt, ReceiptStatus::Rejected, ReasonCode::OrganizerRejected);
 
         return back();
     }
@@ -130,20 +133,20 @@ class ReviewController extends Controller
 
         $participant->receipts()->create([
             'event_id' => $event->id,
-            'status' => 'cash',
-            'decided_by' => 'organizer',
+            'status' => ReceiptStatus::Cash,
+            'decided_by' => DecidedBy::Organizer,
             'decided_at' => now(),
         ]);
 
         return back();
     }
 
-    private function decide(Receipt $receipt, string $status, ?string $reason): void
+    private function decide(Receipt $receipt, ReceiptStatus $status, ?ReasonCode $reason): void
     {
         $receipt->update([
             'status' => $status,
             'reason_code' => $reason,
-            'decided_by' => 'organizer',
+            'decided_by' => DecidedBy::Organizer,
             'decided_at' => now(),
         ]);
     }

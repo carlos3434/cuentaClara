@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Public;
 
+use App\Enums\EventStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Public\Concerns\ResolvesParticipant;
 use App\Models\Event;
@@ -19,7 +20,7 @@ class EventController extends Controller
      */
     public function show(Request $request, Event $event): Response
     {
-        abort_if($event->status === 'draft', 404);
+        abort_if($event->status === EventStatus::Draft, 404);
 
         $participant = $this->currentParticipant($request, $event);
 

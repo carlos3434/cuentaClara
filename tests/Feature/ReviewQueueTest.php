@@ -115,8 +115,8 @@ class ReviewQueueTest extends TestCase
             ->assertRedirect();
 
         $receipt->refresh();
-        $this->assertSame('validated', $receipt->status);
-        $this->assertSame('organizer', $receipt->decided_by);
+        $this->assertSame('validated', $receipt->status->value);
+        $this->assertSame('organizer', $receipt->decided_by->value);
         $this->assertNull($receipt->reason_code);
         $this->assertNotNull($receipt->decided_at);
     }
@@ -130,9 +130,9 @@ class ReviewQueueTest extends TestCase
             ->assertRedirect();
 
         $receipt->refresh();
-        $this->assertSame('rejected', $receipt->status);
-        $this->assertSame('organizer', $receipt->decided_by);
-        $this->assertSame('organizer_rejected', $receipt->reason_code);
+        $this->assertSame('rejected', $receipt->status->value);
+        $this->assertSame('organizer', $receipt->decided_by->value);
+        $this->assertSame('organizer_rejected', $receipt->reason_code->value);
     }
 
     public function test_organizer_can_mark_a_participant_as_paid_in_cash(): void
