@@ -1,0 +1,28 @@
+# Build artifacts and deps — rebuilt inside the image
+/node_modules
+/vendor
+/public/build
+/public/hot
+
+# Local env & secrets (Render injects env vars at runtime)
+.env
+.env.*
+!.env.example
+
+# Dev-only / VCS / CI noise
+.git
+.github
+.gitignore
+/tests
+/docs
+/scripts
+phpunit.xml
+vitest.config.js
+coverage
+.phpunit.cache
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+npm-debug.log*
+.DS_Store
