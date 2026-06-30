@@ -251,6 +251,9 @@ function reopenEvent() {
                             {{ badgeOf(p.status).label }}
                         </span>
                         <span class="min-w-0 flex-1 truncate font-medium">{{ p.name }}</span>
+                        <span v-if="p.status === 'paid' && p.amount_cents != null" class="shrink-0 text-sm font-semibold text-teal-700">
+                            S/ {{ soles(p.amount_cents) }}
+                        </span>
                     </div>
                     <div v-if="(p.receipt && p.receipt.image_url) || p.status !== 'paid'"
                         class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">

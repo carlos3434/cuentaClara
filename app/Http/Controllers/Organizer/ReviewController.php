@@ -42,8 +42,17 @@ class ReviewController extends Controller
             'expenses' => fn ($q) => $q->latest('id'),
         ]);
 
-        $paidCount = $this->paidCount($event);
-        $collected = $paidCount * $event->share_cents;
+        // Collected = the sum of the *actual* amounts of approved payments
+        // (read from the voucher), not headcount × share — participants may
+        // pay more or less than their nominal share. Cash payments (no voucher)
+        // fall back to the share.
+        $paid = $event->receipts()
+            ->whereIn('status', self::PAID_VALUES)
+            ->get(['participant_id', 'extracted_amount_cents'])
+            ->groupBy('participant_id');
+
+        $paidCount = $paid->count();
+        $collected = $paid->sum(fn ($receipts) => $receipts->first()->extracted_amount_cents ?? $event->share_cents);
 
         $review = $event->receipts
             ->map(fn (Receipt $r) => $this->receiptPayload($event, $r))
@@ -158,13 +167,6 @@ class ReviewController extends Controller
         abort_unless($receipt->event_id === $event->id, 404);
     }
 
-    private function paidCount(Event $event): int
-    {
-        return $event->participants()
-            ->whereHas('receipts', fn ($q) => $q->whereIn('status', self::PAID_VALUES))
-            ->count();
-    }
-
     /**
      * One page of *resolved* participants (newest first), shaped for "Ver más".
      * Only those whose payment is decided — approved (validated/cash) or
@@ -197,10 +199,10 @@ class ReviewController extends Controller
      */
     private function presentParticipant(Event $event, Participant $p): array
     {
-        $paid = $p->receipts->whereIn('status', self::PAID)->isNotEmpty();
+        $paidReceipt = $p->receipts->whereIn('status', self::PAID)->first();
         $latest = $p->receipts->first();
 
-        $status = $paid
+        $status = $paidReceipt
             ? 'paid'
             : ($latest ? match ($latest->status) {
                 ReceiptStatus::NeedsReview => 'review',
@@ -213,6 +215,9 @@ class ReviewController extends Controller
             'id' => $p->id,
             'name' => $p->name,
             'status' => $status,
+            // Amount counted toward "collected" for an approved payment:
+            // the read amount, or the share for cash / unreadable vouchers.
+            'amount_cents' => $paidReceipt ? ($paidReceipt->extracted_amount_cents ?? $event->share_cents) : null,
             // Latest uploaded voucher, so the organizer can inspect any
             // participant's payment — not only those in the review queue.
             'receipt' => $latest ? $this->receiptPayload($event, $latest) : null,

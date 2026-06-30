@@ -81,6 +81,34 @@ class ReviewQueueTest extends TestCase
                 ->has('event.pay_deadline'));
     }
 
+    public function test_collected_sums_the_actual_paid_amounts(): void
+    {
+        $owner = User::factory()->create();
+        $event = Event::factory()->create([
+            'user_id' => $owner->id,
+            'share_cents' => 1071,
+            'total_cents' => 20000,
+            'headcount' => 10,
+        ]);
+
+        // Approved voucher read as S/ 150.00 (an overpayment vs the S/ 10.71 share).
+        $p1 = Participant::factory()->for($event)->create(['name' => 'Ana']);
+        Receipt::factory()->for($event)->for($p1)->create(['status' => 'validated', 'extracted_amount_cents' => 15000]);
+
+        // Cash payment without a voucher → falls back to the share.
+        $p2 = Participant::factory()->for($event)->create(['name' => 'Beto']);
+        Receipt::factory()->for($event)->for($p2)->create(['status' => 'cash', 'extracted_amount_cents' => null]);
+
+        $this->actingAs($owner)
+            ->get("/events/{$event->slug}/review")
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.paid_count', 2)
+                ->where('summary.collected_cents', 15000 + 1071)               // real amounts, not 2 × share
+                ->where('summary.pending_cents', 20000 - (15000 + 1071))       // what's left of the total
+                ->where('participants.data.0.amount_cents', 1071)              // Beto (cash → share)
+                ->where('participants.data.1.amount_cents', 15000));           // Ana (read amount)
+    }
+
     public function test_participants_payload_includes_their_uploaded_voucher(): void
     {
         $owner = User::factory()->create();
