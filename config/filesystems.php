@@ -60,6 +60,19 @@ return [
             'report' => false,
         ],
 
+        // Private local disk rooted on a Render Persistent Disk (mounted at an
+        // absolute path that survives deploys/restarts). Set RECEIPTS_DISK=persistent
+        // and RECEIPTS_DISK_ROOT=/var/data/receipts in production. Never public:
+        // receipts are financial PII, streamed through the app (see ReceiptStorage).
+        'persistent' => [
+            'driver' => 'local',
+            'root' => env('RECEIPTS_DISK_ROOT', storage_path('app/private')),
+            'serve' => false,
+            'visibility' => 'private',
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

@@ -52,7 +52,7 @@ multimoneda. Ver [`docs/13`](docs/13-mvp-critique-and-simplification.md),
 - **Backend:** Laravel 13 (PHP 8.3) · Eloquent · Queues / Jobs · Form Requests · Policies · Actions · Enums (PHP 8.1)
 - **Frontend:** Inertia + Vue 3 · Tailwind CSS v4 (mobile-first) · iconos SVG inline
 - **Base de datos:** SQLite (dev) · MySQL/RDS (prod)
-- **Almacenamiento:** disco privado local (dev) · S3 (prod) — los vouchers nunca son públicos y se borran al resolver el pago
+- **Almacenamiento:** disco privado local (dev) · **disco persistente de Render** o S3 (prod) — los vouchers nunca son públicos y se borran al resolver el pago
 - **Lectura de comprobantes:** **Tesseract OCR** (`AI_DRIVER=ocr`, default en prod) · opcional Claude vision (`AI_DRIVER=anthropic`) · `FakeReceiptVision` (dev/test)
 - **Pruebas:** PHPUnit + PCOV (backend) · Vitest + Vue Test Utils + `@vitest/coverage-v8` (frontend)
 - **CI/CD:** GitHub Actions (build + ambas suites + cobertura) y, si pasan, deploy automático a **Render** (Docker)
@@ -95,8 +95,10 @@ Abre `http://127.0.0.1:8000` → te redirige al **dashboard** del organizador
 ## Configuración (.env)
 
 ```ini
-# Almacenamiento de vouchers (privado). Usa s3 en producción.
+# Almacenamiento de vouchers (privado). En prod: 'persistent' (disco de Render)
+# o 's3'. Con 'persistent' define también RECEIPTS_DISK_ROOT (ruta del disco).
 RECEIPTS_DISK=local
+# RECEIPTS_DISK_ROOT=/var/data/receipts   # solo con RECEIPTS_DISK=persistent
 RECEIPTS_MAX_KB=8192
 
 # Lectura de comprobantes
@@ -241,9 +243,7 @@ Producto (ver detalle en [`docs/13`](docs/13-mvp-critique-and-simplification.md)
 
 Plataforma / calidad:
 
-- **Base de datos persistente** en prod (RDS/MySQL o disco persistente) — hoy SQLite
-  en Render es **efímera** y se borra en cada deploy.
-- **Cifrado en reposo** (S3 SSE) y retención configurable de vouchers.
+- **Cifrado en reposo** y retención configurable de vouchers.
 - **E2E** con Playwright (incl. el flujo OCR real con un canvas de verdad).
 - **Branch protection** en `main` exigiendo el check verde de CI.
 
@@ -258,14 +258,24 @@ defecto (`ADMIN_EMAIL`/`ADMIN_PASSWORD`) y levanta `php artisan serve` en `$PORT
 (`AI_DRIVER=ocr`, `QUEUE_CONNECTION=sync`, `APP_ENV=production` ya vienen por
 defecto en la imagen). **No** generamos `APP_KEY` dentro del Dockerfile.
 
-**CI/CD:** en cada push a `main`, [GitHub Actions](.github/workflows/ci.yml) corre
-las pruebas y, si pasan, dispara el deploy vía la API de Render y espera a que quede
-`live` (secrets `RENDER_API_KEY` y `RENDER_SERVICE_ID`). Render detrás de su proxy
-TLS: la app confía en `X-Forwarded-Proto` para generar URLs `https`.
+### Persistencia de datos
 
-> ⚠️ En Render la base **SQLite es efímera** (se borra en cada deploy); por eso el
-> admin se recrea desde env en cada arranque. Para datos persistentes, migrar a
-> MySQL/RDS o un disco persistente.
+La base de datos y las imágenes de vouchers deben sobrevivir a los deploys.
+
+- **Base de datos:** Postgres administrado de Render. Setear `DB_CONNECTION=pgsql`
+  y `DB_URL` (Internal Connection String). La imagen trae `pdo_pgsql`.
+- **Imágenes de vouchers:** **Render Persistent Disk**. Adjuntar un disco al
+  servicio (mount path, p. ej. `/var/data`) y setear `RECEIPTS_DISK=persistent`
+  + `RECEIPTS_DISK_ROOT=/var/data/receipts`. Alternativa: `RECEIPTS_DISK=s3`
+  con un bucket privado.
+
+> El disco se monta como root, así que la imagen **arranca como root**, el
+> entrypoint hace `chown` de `RECEIPTS_DISK_ROOT` a `www-data` y **baja
+> privilegios con `gosu`** antes de levantar la app — nunca corre como root.
+>
+> ⚠️ Adjuntar un disco **fuerza instancia única** (sin escalado horizontal) y
+> **desactiva el zero-downtime deploy** (hay un breve corte al desplegar). Para
+> escalar horizontalmente más adelante, mover las imágenes a S3.
 
 ## Documentación
 

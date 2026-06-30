@@ -11,12 +11,16 @@
 
 ## 1. Despliegue y CI/CD
 
-- **Dockerfile** multi-stage (Node compila assets → imagen PHP 8.3 + Tesseract).
-  Defaults de prod por `ENV`: `APP_ENV=production`, `APP_DEBUG=false`,
-  `DB_CONNECTION=sqlite`, `QUEUE_CONNECTION=sync`, `AI_DRIVER=ocr`.
-- **`docker/entrypoint.sh`**: ensure SQLite file → `config/route/view:cache` →
-  `migrate --force` → **crea admin desde `ADMIN_EMAIL`/`ADMIN_PASSWORD`** →
-  `storage:link` → `php artisan serve --host=0.0.0.0 --port=$PORT`.
+- **Dockerfile** multi-stage (Node compila assets → imagen PHP 8.3 + Tesseract +
+  `pdo_pgsql` + `gosu`). Defaults de prod por `ENV`: `APP_ENV=production`,
+  `APP_DEBUG=false`, `QUEUE_CONNECTION=sync`, `AI_DRIVER=ocr`. La conexión de BD
+  y el disco de recibos **no** se fijan en la imagen: los decide el env de Render.
+- **`docker/entrypoint.sh`**: arranca como **root** → si hay `RECEIPTS_DISK_ROOT`,
+  crea ese dir en el disco persistente y lo `chown` a `www-data` → **baja a
+  `www-data` con `gosu`** → (solo si SQLite) ensure file → `config/route/view:cache`
+  → `migrate --force` → **crea admin desde `ADMIN_EMAIL`/`ADMIN_PASSWORD`** →
+  `storage:link` → `php artisan serve --host=0.0.0.0 --port=$PORT`. La app **nunca
+  corre como root**; root solo se usa para preparar el disco recién montado.
 - **`APP_KEY` NO** se genera en el Dockerfile (se inyecta como env en Render).
 - **Proxy TLS de Render**: `bootstrap/app.php` confía en proxies
   (`X-Forwarded-Proto`) para generar URLs `https` (si no, *mixed content*).
@@ -24,8 +28,8 @@
   `php artisan test --coverage --min=90`) y job `deploy` (solo en push a `main`,
   tras tests verdes) que llama a la **API de Render**, crea el deploy y hace
   *poll* hasta `live`. Secrets: `RENDER_API_KEY`, `RENDER_SERVICE_ID`.
-- ⚠️ **SQLite en Render es efímera** (se borra en cada deploy). Por eso el admin
-  se recrea desde env en cada arranque. Pendiente: BD persistente (MySQL/RDS).
+- **Persistencia de datos**: ver sección 10 (Postgres administrado + Render
+  Persistent Disk para las imágenes).
 
 ## 2. Revisión manual vs. automática (`review_mode`)
 
@@ -105,18 +109,48 @@ Decisiones tomadas (datos de pago = PII financiera, Ley 29733):
 - `phpunit.xml` fija `AI_DRIVER=fake` y `REVIEW_MODE=manual` para que los tests
   sean deterministas sin depender del `.env` local.
 
+## 10. Persistencia en producción (Postgres + disco de Render)
+
+El filesystem de Render es **efímero**: sin esto, cada deploy borraba la BD y las
+imágenes subidas. Dos piezas, ambas soportadas ya en código (falta configurarlas
+en el dashboard de Render):
+
+- **Base de datos → Postgres administrado.** La imagen trae `pdo_pgsql`. En Render:
+  `DB_CONNECTION=pgsql` + `DB_URL` (Internal Connection String del Postgres) — o las
+  vars `DB_HOST/PORT/DATABASE/USERNAME/PASSWORD`. El entrypoint solo crea el archivo
+  SQLite cuando `DB_CONNECTION=sqlite`; con Postgres ese paso se salta y `migrate
+  --force` corre contra la BD administrada. Migraciones verificadas portables
+  (Blueprint puro, sin SQL crudo ni pragmas).
+- **Imágenes de vouchers → Render Persistent Disk.** Disco `persistent` en
+  `config/filesystems.php` (driver `local`, raíz = `RECEIPTS_DISK_ROOT`, privado,
+  `serve=false`). En Render: adjuntar un disco (mount `/var/data`), `RECEIPTS_DISK=persistent`,
+  `RECEIPTS_DISK_ROOT=/var/data/receipts`. **Permisos**: el disco se monta como root,
+  por eso el entrypoint corre como root, hace `chown` del dir y baja a `www-data`
+  con `gosu` (patrón estándar; Render no documenta el owner del mount). Las imágenes
+  se sirven por streaming vía `ReceiptStorage` (route autenticada), nunca por URL
+  pública — son PII financiera. Alternativa: `RECEIPTS_DISK=s3` (bucket privado,
+  paquete `league/flysystem-aws-s3-v3` ya instalado).
+- ⚠️ **Tradeoff del disco**: adjuntar un Persistent Disk **fuerza instancia única**
+  (sin escalado horizontal) y **desactiva zero-downtime deploys** (breve corte al
+  desplegar). Aceptable para el MVP; para escalar horizontalmente, mover imágenes a S3.
+- Nota: con un disco persistente también se podría alojar la **SQLite** ahí y diferir
+  Postgres (una pieza menos de infra). Hoy el plan es Postgres + disco para imágenes.
+
 ---
 
 ## Pendientes / próximos pasos (para el fin de semana)
 
-1. **Cargar en Render** las env: `APP_KEY`, `APP_URL`, `ADMIN_EMAIL`,
-   `ADMIN_PASSWORD`; y los secrets de CI `RENDER_API_KEY` / `RENDER_SERVICE_ID`.
-   Dejar `REVIEW_MODE=manual` en prod.
-2. **Validación de fecha** del pago contra el rango válido del evento (marcar
+1. **Configurar persistencia en Render** (código ya listo, ver sección 10):
+   crear el **Postgres** administrado y setear `DB_CONNECTION=pgsql` + `DB_URL`;
+   adjuntar un **Persistent Disk** y setear `RECEIPTS_DISK=persistent` +
+   `RECEIPTS_DISK_ROOT=/var/data/receipts`.
+2. **Cargar en Render** las env: `APP_KEY`, `APP_URL`, `ADMIN_EMAIL`,
+   `ADMIN_PASSWORD`, `APP_VERSION`; y los secrets de CI `RENDER_API_KEY` /
+   `RENDER_SERVICE_ID`. Dejar `REVIEW_MODE=manual` en prod.
+3. **Validación de fecha** del pago contra el rango válido del evento (marcar
    fuera de rango → revisión).
-3. **Export CSV** de pagos resueltos para el organizador.
-4. **BD persistente** en prod (la SQLite efímera borra todo en cada deploy).
-5. (Opcional) **Cifrado en reposo** (S3 SSE) + retención configurable.
+4. **Export CSV** de pagos resueltos para el organizador.
+5. (Opcional) **Cifrado en reposo** + retención configurable.
 6. (Opcional) **Guardrail**: que el driver `fake` no pueda usarse en producción.
 
 ## Notas de operación

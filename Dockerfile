@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpq-dev \
         unzip \
         git \
+        gosu \
         tesseract-ocr \
         tesseract-ocr-spa \
     && docker-php-ext-install -j"$(nproc)" \
@@ -81,11 +82,13 @@ COPY --from=assets /app/public/build ./public/build
 RUN composer dump-autoload --optimize --no-dev \
     && php artisan package:discover --ansi
 
-# Writable dirs + non-root runtime user.
+# Writable dirs owned by the non-root runtime user.
 RUN chmod +x docker/entrypoint.sh \
     && chown -R www-data:www-data storage bootstrap/cache database
 
-USER www-data
+# The container starts as root so the entrypoint can chown a freshly mounted
+# Render Persistent Disk (only writable by root until then); it immediately
+# drops to www-data via gosu before running the app. See docker/entrypoint.sh.
 
 # Render routes traffic to $PORT (default 10000); the entrypoint binds it.
 EXPOSE 10000

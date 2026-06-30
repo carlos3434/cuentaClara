@@ -61,7 +61,8 @@ For npm, if needed: `npm config set cafile ~/.config/cuentaclara-corp-ca.pem`.
 ## Environment configuration
 
 ```ini
-# Receipts storage (private). Use s3 in production.
+# Receipts storage (private). In prod: 'persistent' (Render disk) or 's3'.
+# With 'persistent' also set RECEIPTS_DISK_ROOT (path on the mounted disk).
 RECEIPTS_DISK=local
 RECEIPTS_MAX_KB=8192
 
