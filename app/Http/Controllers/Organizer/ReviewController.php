@@ -19,6 +19,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ReviewController extends Controller
 {
     private const PAID = [ReceiptStatus::Validated, ReceiptStatus::Cash];
+    private const PAID_VALUES = [ReceiptStatus::Validated->value, ReceiptStatus::Cash->value];
+    private const PENDING_VALUES = [ReceiptStatus::Submitted->value, ReceiptStatus::NeedsReview->value];
     private const PER_PAGE = 10;
 
     /**
@@ -159,12 +161,15 @@ class ReviewController extends Controller
     private function paidCount(Event $event): int
     {
         return $event->participants()
-            ->whereHas('receipts', fn ($q) => $q->whereIn('status', [ReceiptStatus::Validated->value, ReceiptStatus::Cash->value]))
+            ->whereHas('receipts', fn ($q) => $q->whereIn('status', self::PAID_VALUES))
             ->count();
     }
 
     /**
-     * One page of participants (newest first), shaped for "Ver más".
+     * One page of *resolved* participants (newest first), shaped for "Ver más".
+     * Only those whose payment is decided — approved (validated/cash) or
+     * rejected — appear here. Participants still awaiting a decision live in
+     * the "Por revisar" queue, so the two sections never overlap.
      *
      * @return array{data: array<int, array<string, mixed>>, next_page: ?int, total: int}
      */
@@ -172,6 +177,11 @@ class ReviewController extends Controller
     {
         $paginator = $event->participants()
             ->with(['receipts' => fn ($q) => $q->latest('id')])
+            ->whereHas('receipts')
+            ->where(function ($q) {
+                $q->whereHas('receipts', fn ($r) => $r->whereIn('status', self::PAID_VALUES))
+                    ->orWhereDoesntHave('receipts', fn ($r) => $r->whereIn('status', self::PENDING_VALUES));
+            })
             ->latest('id')
             ->paginate(self::PER_PAGE);
 

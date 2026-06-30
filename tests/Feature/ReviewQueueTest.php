@@ -57,8 +57,10 @@ class ReviewQueueTest extends TestCase
                 ->where('summary.pending_cents', 40000)     // 48000 − 8000
                 ->where('summary.review_count', 1)
                 ->has('review', 1)
-                ->where('participants.total', 3)
-                ->has('participants.data', 3));
+                // Only the two resolved (paid) participants appear here; the
+                // one still under review lives in the "Por revisar" queue.
+                ->where('participants.total', 2)
+                ->has('participants.data', 2));
     }
 
     public function test_review_page_exposes_reminder_fields(): void
@@ -107,7 +109,7 @@ class ReviewQueueTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('participants.data.0.receipt.image_url', null));
     }
 
-    public function test_an_upload_awaiting_confirmation_lands_in_the_review_queue(): void
+    public function test_an_upload_awaiting_confirmation_lands_only_in_the_review_queue(): void
     {
         $owner = User::factory()->create();
         $event = Event::factory()->create(['user_id' => $owner->id]);
@@ -117,17 +119,20 @@ class ReviewQueueTest extends TestCase
         $this->actingAs($owner)
             ->get("/events/{$event->slug}/review")
             ->assertInertia(fn (Assert $page) => $page
-                ->where('participants.data.0.status', 'submitted')   // not 'pending'
-                ->where('summary.review_count', 1)                   // awaits manual confirmation
+                ->has('review', 1)                                   // shows in "Por revisar"
+                ->where('summary.review_count', 1)
                 ->where('summary.collected_cents', 0)                // not counted as paid yet
-                ->has('review', 1));
+                ->where('participants.total', 0)                     // NOT in "Participantes" yet
+                ->has('participants.data', 0));
     }
 
     public function test_participants_paginate_and_load_more_returns_the_rest(): void
     {
         $owner = User::factory()->create();
         $event = Event::factory()->create(['user_id' => $owner->id]);
-        Participant::factory()->count(12)->for($event)->create();
+        // Each participant has a resolved (approved) payment so they show here.
+        Participant::factory()->count(12)->for($event)->create()
+            ->each(fn ($p) => Receipt::factory()->for($event)->for($p)->create(['status' => 'validated']));
 
         $this->actingAs($owner)
             ->get("/events/{$event->slug}/review")

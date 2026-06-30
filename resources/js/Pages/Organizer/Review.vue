@@ -43,7 +43,7 @@ const reasonLabels = {
     duplicate_operation: 'Posible duplicado',
 };
 const statusBadge = {
-    paid: { label: 'Pagó', cls: 'bg-teal-100 text-teal-800', icon: 'check-circle' },
+    paid: { label: 'Aprobado', cls: 'bg-teal-100 text-teal-800', icon: 'check-circle' },
     submitted: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800', icon: 'clock' },
     review: { label: 'En revisión', cls: 'bg-amber-100 text-amber-800', icon: 'alert' },
     rejected: { label: 'Rechazado', cls: 'bg-red-100 text-red-800', icon: 'x-circle' },
@@ -240,7 +240,7 @@ function reopenEvent() {
             </h2>
 
             <p v-if="participantItems.length === 0" class="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                Nadie ha subido su voucher todavía.
+                Aún no hay pagos aprobados ni rechazados.
             </p>
 
             <ul v-else class="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">

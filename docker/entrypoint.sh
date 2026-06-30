@@ -20,6 +20,13 @@ php artisan view:cache
 # Run migrations on container start.
 php artisan migrate --force
 
+# Ensure a default admin exists (idempotent). Required on Render because the
+# SQLite database is ephemeral and reset on every deploy. Set ADMIN_EMAIL and
+# ADMIN_PASSWORD in the environment to enable.
+if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
+    php artisan admin:make "$ADMIN_EMAIL" --name="${ADMIN_NAME:-Admin}" --password="$ADMIN_PASSWORD"
+fi
+
 # Link the public storage symlink (no-op if it already exists).
 php artisan storage:link || true
 

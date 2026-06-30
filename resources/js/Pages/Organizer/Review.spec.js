@@ -32,7 +32,7 @@ function makeProps(overrides = {}) {
         }],
         participants: participantsPage([
             { id: 1, name: 'Ana', status: 'paid', receipt: { id: 9, image_url: 'http://x/img/9', amount_cents: 4000, date: '2026-06-24', method: 'yape', recipient: 'Caro', confidence: 0.95, status: 'validated', reason_code: null } },
-            { id: 2, name: 'Beto', status: 'pending', receipt: null },
+            { id: 2, name: 'Beto', status: 'rejected', receipt: null },
         ], null, 2),
         expenses: [{ id: 3, note: 'Cancha', image_url: 'http://x/exp/3', created_at: '2026-06-24T00:00:00Z' }],
         share_url: 'http://x/events/abc/created',
@@ -96,8 +96,8 @@ describe('Organizer/Review', () => {
     it('shows participant badges and toggles a read-only voucher panel', async () => {
         const w = mount(Review, { props: makeProps() });
 
-        expect(w.text()).toContain('Pagó');        // Ana
-        expect(w.text()).toContain('Pendiente');   // Beto
+        expect(w.text()).toContain('Aprobado');     // Ana
+        expect(w.text()).toContain('Rechazado');    // Beto
         // Ana's voucher panel is collapsed initially.
         expect(w.findAll('img').some((i) => i.attributes('alt') === 'Voucher de Ana')).toBe(false);
 

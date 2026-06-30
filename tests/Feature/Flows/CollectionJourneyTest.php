@@ -53,13 +53,13 @@ class CollectionJourneyTest extends TestCase
             ->get("/e/{$event->slug}")
             ->assertInertia(fn (Assert $p) => $p->where('participant.badge', 'pending'));
 
-        // It shows in the review queue and nothing is collected yet.
+        // It shows only in the review queue — not yet in "Participantes".
         $this->actingAs($organizer)
             ->get("/events/{$event->slug}/review")
             ->assertInertia(fn (Assert $p) => $p
                 ->where('summary.review_count', 1)
                 ->where('summary.collected_cents', 0)
-                ->where('participants.data.0.status', 'submitted'));
+                ->where('participants.total', 0));
 
         // Organizer confirms the payment.
         $this->actingAs($organizer)
