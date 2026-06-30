@@ -11,4 +11,5 @@ enum ReasonCode: string
     case LowConfidence = 'low_confidence';
     case AiUnavailable = 'ai_unavailable';
     case OrganizerRejected = 'organizer_rejected';
+    case DuplicateOperation = 'duplicate_operation';
 }

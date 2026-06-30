@@ -40,6 +40,7 @@ const reasonLabels = {
     amount_unreadable: 'Monto ilegible',
     ai_unavailable: 'IA no disponible',
     organizer_rejected: 'Rechazado',
+    duplicate_operation: 'Posible duplicado',
 };
 const statusBadge = {
     paid: { label: 'Pagó', cls: 'bg-teal-100 text-teal-800', icon: 'check-circle' },
@@ -183,8 +184,13 @@ function reopenEvent() {
                 <img :src="r.image_url" :alt="`Voucher de ${r.participant}`" class="max-h-72 w-full bg-slate-50 object-contain" />
                 <div class="p-4">
                     <p class="font-semibold">{{ r.participant }}</p>
-                    <p v-if="r.reason_code" class="mt-0.5 text-sm font-medium text-amber-700">
+                    <p v-if="r.reason_code"
+                        :class="['mt-0.5 flex items-center gap-1 text-sm font-medium', r.reason_code === 'duplicate_operation' ? 'text-red-700' : 'text-amber-700']">
+                        <Icon v-if="r.reason_code === 'duplicate_operation'" name="alert" class="h-4 w-4" />
                         {{ reasonLabels[r.reason_code] ?? r.reason_code }}
+                    </p>
+                    <p v-if="r.reason_code === 'duplicate_operation' && r.explanation" class="mt-0.5 text-xs text-red-600">
+                        {{ r.explanation }}
                     </p>
 
                     <p class="mt-2 text-sm text-slate-500">

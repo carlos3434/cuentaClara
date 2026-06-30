@@ -86,6 +86,61 @@ class ValidateReceiptTest extends TestCase
         $this->assertSame('organizer', $receipt->decided_by->value);
     }
 
+    public function test_job_flags_a_receipt_whose_operation_was_already_uploaded(): void
+    {
+        config(['cuentaclara.review_mode' => 'auto']); // even auto must not approve a duplicate
+        $event = Event::factory()->create(['share_cents' => 4000, 'total_cents' => 40000, 'headcount' => 10]);
+
+        $firstParticipant = Participant::factory()->for($event)->create(['name' => 'Ana']);
+        Receipt::factory()->for($event)->for($firstParticipant)
+            ->create(['status' => 'validated', 'extracted_operation' => '2287273']);
+
+        $second = Receipt::factory()->for($event)
+            ->for(Participant::factory()->for($event)->create(['name' => 'Beto']))
+            ->create(['status' => 'submitted']);
+
+        $this->bindVision($this->extractionWithAmount(4000, operation: '2287273'));
+        (new ValidateReceiptJob($second))->handle(app(ReceiptVision::class), new ReceiptRuleEngine());
+
+        $second->refresh();
+        $this->assertSame('needs_review', $second->status->value);
+        $this->assertSame('duplicate_operation', $second->reason_code->value);
+        $this->assertNull($second->decided_by);          // not auto-approved
+        $this->assertStringContainsString('Ana', $second->ai_explanation);
+    }
+
+    public function test_the_same_operation_in_a_different_event_is_not_a_duplicate(): void
+    {
+        config(['cuentaclara.review_mode' => 'auto']);
+        $other = Event::factory()->create();
+        Receipt::factory()->for($other)->for(Participant::factory()->for($other))
+            ->create(['status' => 'validated', 'extracted_operation' => '2287273']);
+
+        $receipt = $this->makeSubmittedReceipt(shareCents: 4000);
+        $this->bindVision($this->extractionWithAmount(4000, operation: '2287273'));
+        (new ValidateReceiptJob($receipt))->handle(app(ReceiptVision::class), new ReceiptRuleEngine());
+
+        $receipt->refresh();
+        $this->assertSame('validated', $receipt->status->value); // not flagged
+    }
+
+    public function test_a_missing_operation_number_is_never_a_duplicate(): void
+    {
+        config(['cuentaclara.review_mode' => 'auto']);
+        $event = Event::factory()->create(['share_cents' => 4000, 'total_cents' => 40000, 'headcount' => 10]);
+        Receipt::factory()->for($event)->for(Participant::factory()->for($event))
+            ->create(['status' => 'validated', 'extracted_operation' => null]);
+
+        $receipt = Receipt::factory()->for($event)->for(Participant::factory()->for($event))
+            ->create(['status' => 'submitted']);
+
+        $this->bindVision($this->extractionWithAmount(4000, operation: null));
+        (new ValidateReceiptJob($receipt))->handle(app(ReceiptVision::class), new ReceiptRuleEngine());
+
+        $receipt->refresh();
+        $this->assertSame('validated', $receipt->status->value); // not flagged
+    }
+
     public function test_ai_failure_routes_to_review_never_rejects(): void
     {
         $receipt = $this->makeSubmittedReceipt(shareCents: 4000);
@@ -119,7 +174,7 @@ class ValidateReceiptTest extends TestCase
 
     // --- Helpers --------------------------------------------------------
 
-    private function extractionWithAmount(int $amountCents, float $confidence = 0.95): ReceiptExtraction
+    private function extractionWithAmount(int $amountCents, float $confidence = 0.95, ?string $operation = null): ReceiptExtraction
     {
         return new ReceiptExtraction(
             isReceipt: true,
@@ -130,6 +185,7 @@ class ValidateReceiptTest extends TestCase
             recipient: 'Caro',
             confidence: $confidence,
             explanation: 'stub',
+            operation: $operation,
         );
     }
 

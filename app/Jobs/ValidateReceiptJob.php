@@ -59,10 +59,21 @@ class ValidateReceiptJob implements ShouldQueue
             'ai_raw' => $extraction->raw,
         ];
 
-        // Only act on the verdict in 'auto' mode. In 'manual' mode the AI never
-        // decides money — the receipt stays in the queue for human confirmation.
+        // A voucher whose operation number was already uploaded for this event
+        // is a likely duplicate — surface it for review and never auto-approve,
+        // regardless of mode (it's a fraud/mistake signal, not a money verdict).
+        $duplicateOf = $this->duplicateOf($receipt, $extraction->operation);
+
         $reviewMode = Setting::get('review_mode', config('cuentaclara.review_mode'));
-        if ($reviewMode === 'auto') {
+
+        if ($duplicateOf) {
+            $update['status'] = ReceiptStatus::NeedsReview;
+            $update['reason_code'] = ReasonCode::DuplicateOperation;
+            $update['ai_explanation'] = "Mismo N° de operación ({$extraction->operation}) que el pago de "
+                .($duplicateOf->participant?->name ?? 'otro participante').'.';
+        } elseif ($reviewMode === 'auto') {
+            // Only act on the verdict in 'auto' mode. In 'manual' mode the AI
+            // never decides money — it stays in the queue for human confirmation.
             $update['status'] = $decision['verdict'];
             $update['reason_code'] = $decision['reason_code'];
             $update['decided_by'] = DecidedBy::Ai;
@@ -70,6 +81,25 @@ class ValidateReceiptJob implements ShouldQueue
         }
 
         $receipt->update($update);
+    }
+
+    /**
+     * Another non-rejected receipt in the same event sharing this operation
+     * number, if any. Null operation numbers never match.
+     */
+    private function duplicateOf(Receipt $receipt, ?string $operation): ?Receipt
+    {
+        if ($operation === null || trim($operation) === '') {
+            return null;
+        }
+
+        return Receipt::query()
+            ->where('event_id', $receipt->event_id)
+            ->where('id', '!=', $receipt->id)
+            ->where('extracted_operation', $operation)
+            ->where('status', '!=', ReceiptStatus::Rejected->value)
+            ->with('participant')
+            ->first();
     }
 
     /**
