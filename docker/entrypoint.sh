@@ -4,12 +4,16 @@ set -e
 # Render injects $PORT; fall back to 10000 (Render's default) for local `docker run`.
 export PORT="${PORT:-10000}"
 
-# SQLite "for now": make sure the database file exists before migrating.
-# On Render the filesystem is ephemeral, so this is recreated on every deploy.
-DB_FILE="${DB_DATABASE:-/app/database/database.sqlite}"
-if [ ! -f "$DB_FILE" ]; then
-    mkdir -p "$(dirname "$DB_FILE")"
-    touch "$DB_FILE"
+# With SQLite, make sure the database file exists before migrating. SQLite on
+# Render is ephemeral (recreated every deploy), so production should run on a
+# managed Postgres (DB_CONNECTION=pgsql) — there this block is skipped and the
+# managed database persists across deploys.
+if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
+    DB_FILE="${DB_DATABASE:-/app/database/database.sqlite}"
+    if [ ! -f "$DB_FILE" ]; then
+        mkdir -p "$(dirname "$DB_FILE")"
+        touch "$DB_FILE"
+    fi
 fi
 
 # Cache config/routes/views now that runtime env vars are present.

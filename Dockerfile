@@ -29,12 +29,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libzip-dev \
         libonig-dev \
         libsqlite3-dev \
+        libpq-dev \
         unzip \
         git \
         tesseract-ocr \
         tesseract-ocr-spa \
     && docker-php-ext-install -j"$(nproc)" \
         pdo_sqlite \
+        pdo_pgsql \
         mbstring \
         bcmath \
         zip \
@@ -46,9 +48,12 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /app
 
 # Production-friendly defaults. Render env vars override these at runtime.
+# DB and receipts storage are intentionally NOT defaulted here: production
+# must set DB_CONNECTION=pgsql (+ DB_* creds) and RECEIPTS_DISK=s3 (+ AWS_*)
+# on Render so data and uploaded images survive deploys. The image still
+# bundles pdo_sqlite/pdo_pgsql so either works.
 ENV APP_ENV=production \
     APP_DEBUG=false \
-    DB_CONNECTION=sqlite \
     # Single web container: run queued jobs (AI receipt validation) inline.
     # Switch to "database" + a worker if you add a separate worker service.
     QUEUE_CONNECTION=sync \
