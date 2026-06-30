@@ -26,8 +26,9 @@ class ValidateReceiptTest extends TestCase
 
     // --- Job ------------------------------------------------------------
 
-    public function test_job_validates_a_matching_receipt(): void
+    public function test_job_validates_a_matching_receipt_in_auto_mode(): void
     {
+        config(['cuentaclara.review_mode' => 'auto']);
         $receipt = $this->makeSubmittedReceipt(shareCents: 4000);
 
         $this->bindVision($this->extractionWithAmount(4000, confidence: 0.95));
@@ -42,8 +43,9 @@ class ValidateReceiptTest extends TestCase
         $this->assertNull($receipt->reason_code);
     }
 
-    public function test_job_routes_a_mismatch_to_review(): void
+    public function test_job_routes_a_mismatch_to_review_in_auto_mode(): void
     {
+        config(['cuentaclara.review_mode' => 'auto']);
         $receipt = $this->makeSubmittedReceipt(shareCents: 4000);
 
         $this->bindVision($this->extractionWithAmount(3000, confidence: 0.95));
@@ -53,6 +55,21 @@ class ValidateReceiptTest extends TestCase
         $receipt->refresh();
         $this->assertSame('needs_review', $receipt->status->value);
         $this->assertSame('amount_mismatch', $receipt->reason_code->value);
+    }
+
+    public function test_job_in_manual_mode_extracts_but_never_auto_approves(): void
+    {
+        config(['cuentaclara.review_mode' => 'manual']);
+        $receipt = $this->makeSubmittedReceipt(shareCents: 4000);
+
+        $this->bindVision($this->extractionWithAmount(4000, confidence: 0.95));
+
+        (new ValidateReceiptJob($receipt))->handle(app(ReceiptVision::class), new ReceiptRuleEngine());
+
+        $receipt->refresh();
+        $this->assertSame('submitted', $receipt->status->value); // stays in the queue
+        $this->assertNull($receipt->decided_by);                 // human still decides
+        $this->assertSame(4000, $receipt->extracted_amount_cents); // but the reading is stored
     }
 
     public function test_job_does_not_override_an_organizer_decision(): void
@@ -82,23 +99,10 @@ class ValidateReceiptTest extends TestCase
 
     // --- Dispatch on upload ---------------------------------------------
 
-    public function test_auto_mode_dispatches_validation_on_upload(): void
+    public function test_uploading_a_receipt_dispatches_extraction(): void
     {
-        config(['cuentaclara.review_mode' => 'auto']);
-        Queue::fake();
-        Storage::fake(config('cuentaclara.receipts_disk'));
-        $event = Event::factory()->create();
-
-        $this->post("/e/{$event->slug}/receipts", [
-            'name' => 'José',
-            'image' => UploadedFile::fake()->image('voucher.jpg'),
-        ]);
-
-        Queue::assertPushed(ValidateReceiptJob::class);
-    }
-
-    public function test_manual_mode_skips_ai_and_leaves_the_receipt_submitted(): void
-    {
+        // Extraction runs in both modes (it only assists); the mode just
+        // decides whether the reading can auto-approve, inside the job.
         config(['cuentaclara.review_mode' => 'manual']);
         Queue::fake();
         Storage::fake(config('cuentaclara.receipts_disk'));
@@ -109,7 +113,7 @@ class ValidateReceiptTest extends TestCase
             'image' => UploadedFile::fake()->image('voucher.jpg'),
         ]);
 
-        Queue::assertNotPushed(ValidateReceiptJob::class);
+        Queue::assertPushed(ValidateReceiptJob::class);
         $this->assertSame('submitted', Receipt::firstOrFail()->status->value);
     }
 

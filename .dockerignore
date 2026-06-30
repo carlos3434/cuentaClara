@@ -26,3 +26,4 @@ storage/framework/sessions/*
 storage/framework/views/*
 npm-debug.log*
 .DS_Store
+resources/payments-examples

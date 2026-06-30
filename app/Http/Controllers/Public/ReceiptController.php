@@ -9,7 +9,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Public\Concerns\ResolvesParticipant;
 use App\Jobs\ValidateReceiptJob;
 use App\Models\Event;
-use App\Models\Setting;
 use App\Services\Storage\ReceiptStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -74,14 +73,11 @@ class ReceiptController extends Controller
             'status' => ReceiptStatus::Submitted,
         ]);
 
-        // In 'auto' mode, hand off to AI validation (async); the participant
-        // isn't blocked on it. In 'manual' mode there's no AI step — the
-        // receipt stays `submitted` until the organizer confirms it. The mode
-        // is the admin-controlled global setting, falling back to the config.
-        $reviewMode = Setting::get('review_mode', config('cuentaclara.review_mode'));
-        if ($reviewMode === 'auto') {
-            ValidateReceiptJob::dispatch($receipt);
-        }
+        // Read the receipt asynchronously (OCR/AI) to assist the organizer.
+        // The participant isn't blocked on it. Whether the reading can
+        // auto-approve the payment is decided inside the job by review_mode;
+        // in 'manual' mode it only fills the extracted fields.
+        ValidateReceiptJob::dispatch($receipt);
 
         $redirect = redirect()
             ->route('public.events.show', $event)

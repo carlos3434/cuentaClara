@@ -223,6 +223,7 @@ class ReviewController extends Controller
             'date' => $receipt->extracted_date?->toDateString(),
             'method' => $receipt->extracted_method,
             'recipient' => $receipt->extracted_recipient,
+            'operation' => $receipt->extracted_operation,
             'confidence' => $receipt->confidence,
             'explanation' => $receipt->ai_explanation,
             'image_url' => $receipt->s3_key ? route('organizer.receipts.image', [$event, $receipt]) : null,

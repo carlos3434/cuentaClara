@@ -17,6 +17,7 @@ class ReceiptExtraction
         public readonly ?string $recipient,
         public readonly float $confidence,
         public readonly string $explanation,
+        public readonly ?string $operation = null,
         public readonly array $raw = [],
     ) {}
 
@@ -36,6 +37,7 @@ class ReceiptExtraction
             recipient: $json['recipient']['name'] ?? null,
             confidence: (float) ($json['overall_confidence'] ?? 0.0),
             explanation: (string) ($json['explanation'] ?? ''),
+            operation: $json['operation_number'] ?? $json['operation'] ?? null,
             raw: $json,
         );
     }

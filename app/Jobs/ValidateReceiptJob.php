@@ -6,6 +6,7 @@ use App\Enums\DecidedBy;
 use App\Enums\ReasonCode;
 use App\Enums\ReceiptStatus;
 use App\Models\Receipt;
+use App\Models\Setting;
 use App\Services\Ai\Contracts\ReceiptVision;
 use App\Services\Ai\ReceiptRuleEngine;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -45,20 +46,30 @@ class ValidateReceiptJob implements ShouldQueue
             'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ]);
 
-        $receipt->update([
-            'status' => $decision['verdict'],
-            'reason_code' => $decision['reason_code'],
+        // Always store what was read — it assists the organizer's review.
+        $update = [
             'extracted_amount_cents' => $extraction->amountCents,
             'extracted_currency' => $extraction->currency,
             'extracted_date' => $extraction->date,
             'extracted_method' => $extraction->method,
             'extracted_recipient' => $extraction->recipient,
+            'extracted_operation' => $extraction->operation,
             'confidence' => $extraction->confidence,
             'ai_explanation' => $extraction->explanation,
             'ai_raw' => $extraction->raw,
-            'decided_by' => DecidedBy::Ai,
-            'decided_at' => now(),
-        ]);
+        ];
+
+        // Only act on the verdict in 'auto' mode. In 'manual' mode the AI never
+        // decides money — the receipt stays in the queue for human confirmation.
+        $reviewMode = Setting::get('review_mode', config('cuentaclara.review_mode'));
+        if ($reviewMode === 'auto') {
+            $update['status'] = $decision['verdict'];
+            $update['reason_code'] = $decision['reason_code'];
+            $update['decided_by'] = DecidedBy::Ai;
+            $update['decided_at'] = now();
+        }
+
+        $receipt->update($update);
     }
 
     /**

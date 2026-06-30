@@ -27,6 +27,7 @@ class Receipt extends Model
         'extracted_date',
         'extracted_method',
         'extracted_recipient',
+        'extracted_operation',
         'confidence',
         'ai_explanation',
         'ai_raw',

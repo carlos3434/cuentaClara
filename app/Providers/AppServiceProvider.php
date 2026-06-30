@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Services\Ai\AnthropicReceiptVision;
 use App\Services\Ai\Contracts\ReceiptVision;
 use App\Services\Ai\FakeReceiptVision;
+use App\Services\Ai\TesseractReceiptVision;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -18,6 +19,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ReceiptVision::class, function () {
             return match (config('cuentaclara.ai.driver')) {
                 'anthropic' => $this->app->make(AnthropicReceiptVision::class),
+                'ocr' => $this->app->make(TesseractReceiptVision::class),
                 default => new FakeReceiptVision(),
             };
         });

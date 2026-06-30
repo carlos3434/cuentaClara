@@ -31,6 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libsqlite3-dev \
         unzip \
         git \
+        tesseract-ocr \
+        tesseract-ocr-spa \
     && docker-php-ext-install -j"$(nproc)" \
         pdo_sqlite \
         mbstring \

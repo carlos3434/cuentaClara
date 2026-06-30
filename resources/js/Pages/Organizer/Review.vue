@@ -51,6 +51,7 @@ const statusBadge = {
 const badgeOf = (status) => statusBadge[status] ?? statusBadge.pending;
 
 const soles = (c) => (c / 100).toFixed(2);
+const amountMatches = (cents) => cents != null && cents === props.event.share_cents;
 
 const recipient = computed(() => {
     const e = props.event;
@@ -190,16 +191,24 @@ function reopenEvent() {
                         Monto esperado: <span class="font-medium text-slate-700">S/ {{ soles(event.share_cents) }}</span>
                     </p>
 
-                    <!-- AI reading (only when the AI ran; hidden in manual mode) -->
+                    <!-- OCR/AI reading (only when a reader ran; hidden otherwise) -->
                     <dl v-if="r.amount_cents != null || r.confidence != null" class="mt-3 space-y-1 text-sm">
                         <div class="flex justify-between">
                             <dt class="text-slate-500">Monto leído</dt>
-                            <dd class="font-medium">{{ r.amount_cents != null ? 'S/ ' + soles(r.amount_cents) : '—' }}</dd>
+                            <dd class="flex items-center gap-1.5 font-medium">
+                                {{ r.amount_cents != null ? 'S/ ' + soles(r.amount_cents) : '—' }}
+                                <span v-if="r.amount_cents != null"
+                                    :class="['inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium', amountMatches(r.amount_cents) ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-800']">
+                                    <Icon :name="amountMatches(r.amount_cents) ? 'check-circle' : 'alert'" class="h-3 w-3" />
+                                    {{ amountMatches(r.amount_cents) ? 'coincide' : 'revisar' }}
+                                </span>
+                            </dd>
                         </div>
                         <div class="flex justify-between"><dt class="text-slate-500">Fecha</dt><dd class="font-medium">{{ r.date ?? '—' }}</dd></div>
                         <div class="flex justify-between"><dt class="text-slate-500">A</dt><dd class="font-medium">{{ r.recipient ?? '—' }}</dd></div>
                         <div class="flex justify-between"><dt class="text-slate-500">Método</dt><dd class="font-medium">{{ methodLabels[r.method] ?? r.method ?? '—' }}</dd></div>
-                        <div v-if="r.confidence != null" class="flex justify-between"><dt class="text-slate-500">Confianza IA</dt><dd class="font-medium">{{ Math.round(r.confidence * 100) }}%</dd></div>
+                        <div v-if="r.operation" class="flex justify-between"><dt class="text-slate-500">N° de operación</dt><dd class="font-medium">{{ r.operation }}</dd></div>
+                        <div v-if="r.confidence != null" class="flex justify-between"><dt class="text-slate-500">Confianza OCR</dt><dd class="font-medium">{{ Math.round(r.confidence * 100) }}%</dd></div>
                     </dl>
 
                     <div class="mt-4 flex gap-2">
@@ -269,7 +278,8 @@ function reopenEvent() {
                             <div class="flex justify-between"><dt class="text-slate-500">Fecha</dt><dd class="font-medium">{{ p.receipt.date ?? '—' }}</dd></div>
                             <div class="flex justify-between"><dt class="text-slate-500">A</dt><dd class="font-medium">{{ p.receipt.recipient ?? '—' }}</dd></div>
                             <div class="flex justify-between"><dt class="text-slate-500">Método</dt><dd class="font-medium">{{ methodLabels[p.receipt.method] ?? p.receipt.method ?? '—' }}</dd></div>
-                            <div v-if="p.receipt.confidence != null" class="flex justify-between"><dt class="text-slate-500">Confianza IA</dt><dd class="font-medium">{{ Math.round(p.receipt.confidence * 100) }}%</dd></div>
+                            <div v-if="p.receipt.operation" class="flex justify-between"><dt class="text-slate-500">N° de operación</dt><dd class="font-medium">{{ p.receipt.operation }}</dd></div>
+                            <div v-if="p.receipt.confidence != null" class="flex justify-between"><dt class="text-slate-500">Confianza OCR</dt><dd class="font-medium">{{ Math.round(p.receipt.confidence * 100) }}%</dd></div>
                         </dl>
                         <p v-if="p.status === 'submitted' || p.status === 'review'" class="mt-3 text-center text-xs text-slate-500">
                             Pendiente de tu confirmación en <span class="font-medium">“Por revisar”</span>.

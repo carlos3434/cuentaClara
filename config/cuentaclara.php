@@ -54,8 +54,16 @@ return [
      |
      */
     'ai' => [
+        // 'fake' (dev/test), 'ocr' (Tesseract, the demo default in prod), or
+        // 'anthropic' (Claude vision). The reader only *extracts*; whether an
+        // extraction can auto-approve is governed by review_mode above.
         'driver' => env('AI_DRIVER', 'fake'),
         'confidence_threshold' => (float) env('AI_CONFIDENCE_THRESHOLD', 0.85),
+
+        'ocr' => [
+            'bin' => env('TESSERACT_BIN', 'tesseract'),
+            'lang' => env('TESSERACT_LANG', 'spa'),
+        ],
 
         'anthropic' => [
             'api_key' => env('ANTHROPIC_API_KEY'),
