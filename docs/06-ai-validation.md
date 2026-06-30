@@ -1,5 +1,11 @@
 # docs/06-ai-validation.md
 
+> ⚠️ **Actualización post-MVP:** el lector por defecto en producción es ahora
+> **OCR (Tesseract)**, la revisión es **manual** por defecto, y se aplicó
+> minimización de datos. Ver el estado vigente en
+> [`docs/15`](15-post-mvp-changelog.md) (§4, §2, §8). Este doc describe el
+> diseño original del pipeline con IA.
+
 # CuentaClara — AI Receipt Validation
 
 The AI **assists**, it does not make irreversible decisions. Every output is

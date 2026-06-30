@@ -1,5 +1,11 @@
 # docs/09-database-model.md
 
+> ⚠️ **Actualización post-MVP:** se agregaron `users.role` + `users.is_active`,
+> la tabla `settings`, y en `receipts` se reemplazó `extracted_operation` por
+> `operation_hash` (+ `extracted_operation`/`extracted_*` de OCR). Ver
+> [`docs/15`](15-post-mvp-changelog.md) (§7, §8). Este doc describe el modelo
+> original del MVP.
+
 # CuentaClara — Database Model
 
 MySQL (RDS). Money stored as **integer cents** (`BIGINT`/`INT UNSIGNED`). All

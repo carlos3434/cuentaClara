@@ -2,13 +2,14 @@
 
 [![CI](https://github.com/carlos3434/cuentaClara/actions/workflows/ci.yml/badge.svg)](https://github.com/carlos3434/cuentaClara/actions/workflows/ci.yml)
 
-> Comparte un link, cobra el dinero, y deja que la IA revise los vouchers.
+> Comparte un link, cobra el dinero, y revisa los vouchers con ayuda de OCR.
 
 **CuentaClara** es una aplicación web *mobile-first* para organizar pagos
 compartidos entre amigos, compañeros de trabajo o grupos. El organizador crea un
 evento, comparte un link por WhatsApp, cada participante sube su comprobante de
-pago, la IA lo valida, y el organizador ve quién pagó y quién falta — revisando
-solo las excepciones.
+pago, el OCR extrae los datos como ayuda, y el organizador confirma quién pagó y
+ve cuánto falta del total. La revisión es **manual por defecto** (el organizador
+confirma cada pago); la auto-aprobación con IA queda detrás de un interruptor.
 
 Pensado para el contexto peruano: **Yape, Plin y transferencias**, montos en
 **soles (S/)**, interfaz en español.
@@ -30,27 +31,31 @@ seguimiento y la validación; **no reemplaza WhatsApp** (ahí se comparte el lin
 | **Crear evento** | Formulario mobile-first, división equitativa, link público con slug no adivinable; comprobante del gasto opcional al crear |
 | **Dashboard** | `/events` — eventos del organizador, más recientes primero, con estado e iconos |
 | **Participante (sin login)** | Abre el link → se identifica (solo nombre) + sube voucher, en una sola pantalla; refleja eventos cerrados |
-| **Validación del comprobante** | **Navegador**: OCR ligero (`tesseract.js`, bajo demanda) que avisa si la imagen no parece un voucher de Yape/Plin/transferencia (suave, no bloquea). **Servidor**: el método detectado debe estar entre los aceptados |
-| **Validación con IA** | `ValidateReceiptJob` asíncrono; drivers `FakeReceiptVision` (dev) y `AnthropicReceiptVision` (Claude vision); el veredicto lo decide un `ReceiptRuleEngine` determinista (monto + método + confianza). Si la IA falla → *en revisión*, nunca rechazo automático |
-| **Cola de revisión** | `/events/{slug}/review` — cola por revisar y **cualquier** voucher inspeccionable (imagen + lectura de IA), aprobar / rechazar / marcar efectivo, totales cobrado/pendiente |
-| **Recordatorios** | Links `wa.me` (al grupo y por participante pendiente) |
+| **Lectura del comprobante (OCR)** | `ValidateReceiptJob` asíncrono lee el voucher con **Tesseract** (`AI_DRIVER=ocr`, default en prod) y extrae **monto, fecha, método, destinatario y N° de operación** de Yape/Plin/transferencias. Solo asiste; **nunca decide el dinero** |
+| **Revisión manual / automática** | `REVIEW_MODE=manual` (default): cada pago espera tu confirmación. `auto`: el `ReceiptRuleEngine` determinista puede auto-aprobar (monto + método + confianza). El admin cambia el modo en runtime |
+| **Cola de revisión** | `/events/{slug}/review` — **"Por revisar"** lista solo los pendientes; **"Participantes"** lista los resueltos (**Aprobado** / **Rechazado**) con su estado al costado. Aprobar / rechazar / marcar efectivo |
+| **Totales reales** | "Cobrado" suma los **montos reales** de los pagos aprobados (lo leído del voucher; efectivo cae al share), y "Falta = total − cobrado" |
+| **Detección de duplicados** | Si dos participantes suben un voucher con el mismo N° de operación → se marca "Posible duplicado" y nunca se auto-aprueba |
+| **Rol Administrador** | Panel `/admin`: gestión de organizadores (crear / activar-desactivar), pagos por evento, e interruptor global manual/automático |
+| **Recordatorios** | Links `wa.me` (al grupo y por participante) |
 | **Comprobante del gasto** | Evidencia del costo real del organizador (solo almacenamiento), al crear el evento o desde la revisión |
 | **Cerrar / reabrir evento** | Bloquea nuevas subidas cuando está cerrado |
+| **Minimización de datos** | El voucher se **borra al resolver el pago**; el N° de operación se guarda **hasheado**; no se persiste el texto OCR crudo; aviso de privacidad en la subida |
 
-Diferido a v2: división personalizada, pagos parciales/sobrepagos, detección de
-duplicados, teléfonos de participantes, IA sobre el comprobante del gasto,
-tiempo real, multimoneda. Ver [`docs/13`](docs/13-mvp-critique-and-simplification.md)
-y la sección [Mejoras a futuro](#mejoras-a-futuro).
+Diferido a v2: división personalizada, pagos parciales/sobrepagos, teléfonos de
+participantes, IA real de visión sobre el comprobante del gasto, tiempo real,
+multimoneda. Ver [`docs/13`](docs/13-mvp-critique-and-simplification.md),
+[`docs/15`](docs/15-post-mvp-changelog.md) y [Mejoras a futuro](#mejoras-a-futuro).
 
 ## Stack
 
 - **Backend:** Laravel 13 (PHP 8.3) · Eloquent · Queues / Jobs · Form Requests · Policies · Actions · Enums (PHP 8.1)
 - **Frontend:** Inertia + Vue 3 · Tailwind CSS v4 (mobile-first) · iconos SVG inline
 - **Base de datos:** SQLite (dev) · MySQL/RDS (prod)
-- **Almacenamiento:** disco privado local (dev) · S3 (prod) — los vouchers nunca son públicos
-- **IA:** Claude vision (`claude-opus-4-8`) para extracción de comprobantes
+- **Almacenamiento:** disco privado local (dev) · S3 (prod) — los vouchers nunca son públicos y se borran al resolver el pago
+- **Lectura de comprobantes:** **Tesseract OCR** (`AI_DRIVER=ocr`, default en prod) · opcional Claude vision (`AI_DRIVER=anthropic`) · `FakeReceiptVision` (dev/test)
 - **Pruebas:** PHPUnit + PCOV (backend) · Vitest + Vue Test Utils + `@vitest/coverage-v8` (frontend)
-- **CI:** GitHub Actions (build + ambas suites + cobertura, en cada push/PR)
+- **CI/CD:** GitHub Actions (build + ambas suites + cobertura) y, si pasan, deploy automático a **Render** (Docker)
 
 ## Requisitos
 
@@ -94,26 +99,39 @@ Abre `http://127.0.0.1:8000` → te redirige al **dashboard** del organizador
 RECEIPTS_DISK=local
 RECEIPTS_MAX_KB=8192
 
-# Validación con IA
-AI_DRIVER=fake                 # 'fake' (dev/test) o 'anthropic' (Claude real)
+# Lectura de comprobantes
+AI_DRIVER=ocr                  # 'ocr' (Tesseract, default prod) · 'fake' (dev) · 'anthropic'
+TESSERACT_BIN=tesseract        # binario (la imagen Docker lo trae con idioma 'spa')
+TESSERACT_LANG=spa
 AI_CONFIDENCE_THRESHOLD=0.85
-ANTHROPIC_API_KEY=             # requerido cuando AI_DRIVER=anthropic
+ANTHROPIC_API_KEY=             # requerido solo cuando AI_DRIVER=anthropic
 AI_MODEL=claude-opus-4-8
+
+# Revisión de pagos
+REVIEW_MODE=manual             # 'manual' (organizador confirma todo) o 'auto'
+
+# Admin por defecto (creado en el arranque del contenedor — ver Despliegue)
+ADMIN_EMAIL=admin@cuentaclara.test
+ADMIN_PASSWORD=changeme-please
+ADMIN_NAME=Admin
 
 # Rate limits (peticiones/minuto)
 RATE_LIMIT_UPLOADS=20          # POST público /e/{slug}/receipts (por IP)
 RATE_LIMIT_LOGIN=10            # POST /login (por email+IP)
 
 # Cola
-QUEUE_CONNECTION=database      # 'sync' para correr la validación inline
+QUEUE_CONNECTION=database      # 'sync' para correr la lectura/validación inline
 ```
+
+> Para crear o promover un admin manualmente:
+> `php artisan admin:make correo@dominio.com --name="Nombre" --password="clave"`.
 
 ## Calidad: pruebas y cobertura
 
 | Capa | Comando | Tests | Cobertura | Piso CI |
 |------|---------|-------|-----------|---------|
-| **Backend** (PHPUnit) | `php artisan test` | 106 | **99.8 %** líneas (PCOV) | `--min=90` |
-| **Frontend** (Vitest) | `npm run test:js` | 40 | **97.9 %** líneas (v8) | `lines ≥ 90` |
+| **Backend** (PHPUnit) | `php artisan test` | 142 | **≥ 90 %** líneas (PCOV) | `--min=90` |
+| **Frontend** (Vitest) | `npm run test:js` | 53 | **97.9 %** líneas (v8) | `lines ≥ 90` |
 
 ```bash
 php artisan test                 # backend (SQLite en memoria, sin setup)
@@ -137,31 +155,41 @@ El badge arriba refleja el estado de `main`.
 ## Cómo funciona (flujo)
 
 ```
-Organizador          Sistema / IA                 Participante
+Organizador          Sistema / OCR                Participante
     │ crea evento ──────▶                              │
     │ ◀── link público ──                              │
     │ comparte por WhatsApp ─────────────────────────▶ │ abre el link
     │                     ◀──── sube voucher ───────── │ (nombre + foto)
     │                     encola ValidateReceiptJob     │
-    │                     extrae + decide veredicto     │
-    │ ◀── dashboard / cola de revisión ──               │ "¡Listo!"
-    │ aprueba / rechaza / efectivo                      │
+    │                     OCR extrae datos (asiste)     │
+    │ ◀── "Por revisar" (pendiente) ──                  │ "En revisión"
+    │ Confirmar pago / Rechazar                         │
+    │ → "Participantes": Aprobado / Rechazado           │
     │ recuerda por WhatsApp ──────────────────────────▶ │
-    │ cierra el evento                                  │
+    │ cierra el evento (se borran los vouchers)         │
 ```
 
-La IA **solo extrae** (monto, fecha, método, destinatario, confianza); el veredicto
-lo decide un motor de reglas determinista y unitariamente testeado. El organizador
-siempre puede sobrescribir la decisión de la IA.
+El OCR **solo extrae** (monto, fecha, método, destinatario, N° de operación); en
+modo `manual` el organizador confirma cada pago. En modo `auto` un motor de reglas
+determinista y testeado puede auto-aprobar, y el organizador siempre puede
+sobrescribirlo. Un duplicado (mismo N° de operación) nunca se auto-aprueba.
 
 ## Arquitectura y decisiones
 
-- **IA con costura intercambiable.** `ReceiptVision` es un contrato con dos
-  implementaciones: `FakeReceiptVision` (por defecto, dev/test, determinista) y
-  `AnthropicReceiptVision` (Claude vision real). Se elige por `AI_DRIVER`.
-- **El veredicto es determinista.** El modelo solo *extrae*; `ReceiptRuleEngine`
-  (puro y testeado) decide `validated` / `needs_review` por monto + método +
-  confianza. Falla de IA → revisión, nunca rechazo automático.
+- **Lector con costura intercambiable.** `ReceiptVision` es un contrato con tres
+  implementaciones: `TesseractReceiptVision` (OCR, default prod), `FakeReceiptVision`
+  (dev/test, determinista) y `AnthropicReceiptVision` (Claude vision). Se elige por
+  `AI_DRIVER`. El parser de texto (`ReceiptTextParser`) es puro y unitariamente
+  testeado contra los 5 templates reales (Yape, Plin BBVA/Interbank/Scotiabank, BCP).
+- **Revisión manual por defecto.** `review_mode` (config + setting global que el
+  admin cambia en runtime). En `manual` el OCR solo asiste y el organizador confirma;
+  en `auto` el `ReceiptRuleEngine` (puro y testeado) decide por monto + método +
+  confianza. Falla de OCR → revisión, nunca rechazo automático.
+- **Rol y panel de admin.** `users.role` (admin/organizer) + middleware `admin`;
+  `/admin` gestiona organizadores, ve pagos por evento y cambia el modo de revisión.
+- **Minimización de datos.** El voucher se borra al resolver el pago; el N° de
+  operación se guarda hasheado (SHA-256, para detección de duplicados sin el valor
+  en claro); no se persiste el texto OCR crudo. Disco privado tras `ReceiptStorage`.
 - **Autorización con Policies.** `EventPolicy::manage` centraliza “el organizador
   solo gestiona sus eventos” (`$this->authorize('manage', $event)`).
 - **Storage privado tras un gateway.** `ReceiptStorage` es el único punto de
@@ -199,31 +227,52 @@ SLUG=<demo-slug> node scripts/screenshots.mjs                          # → doc
 
 ## Mejoras a futuro
 
-Producto (ver detalle en [`docs/13`](docs/13-mvp-critique-and-simplification.md)):
+Producto (ver detalle en [`docs/13`](docs/13-mvp-critique-and-simplification.md) y
+[`docs/15`](docs/15-post-mvp-changelog.md)):
 
+- **Validación de fecha** del pago contra el rango válido del evento.
+- **Export** de pagos resueltos (CSV) para el organizador.
 - División **personalizada** por participante (hoy solo equitativa).
 - **Pagos parciales y sobrepagos** (acumular abonos hacia la parte).
-- **Detección de duplicados** (mismo voucher subido dos veces).
-- **IA sobre el comprobante del gasto** + alerta si el total no cuadra.
+- **IA real de visión** sobre el comprobante del gasto + alerta si el total no cuadra.
 - **Recordatorios automáticos** (WhatsApp Business API) en vez de solo `wa.me`.
-- **Tiempo real** (WebSockets/Echo) en vez de recargar para ver el veredicto.
+- **Tiempo real** (WebSockets/Echo) en vez de recargar para ver el estado.
 - **Multimoneda**, **multi-organizador**, reembolsos.
 
 Plataforma / calidad:
 
-- **Despliegue** en un host con PHP (Render / Railway / Fly.io / Laravel Forge) —
-  Laravel no corre como sitio estático.
-- **Capturas automáticas** y **E2E** con Playwright (incl. el flujo OCR real, que
-  necesita un canvas de verdad).
+- **Base de datos persistente** en prod (RDS/MySQL o disco persistente) — hoy SQLite
+  en Render es **efímera** y se borra en cada deploy.
+- **Cifrado en reposo** (S3 SSE) y retención configurable de vouchers.
+- **E2E** con Playwright (incl. el flujo OCR real con un canvas de verdad).
 - **Branch protection** en `main` exigiendo el check verde de CI.
-- Subir cobertura de **funciones/branches** del frontend; auditoría de
-  **accesibilidad** e **i18n**.
+
+## Despliegue (Render)
+
+La app corre en **Render** como servicio Docker. El [`Dockerfile`](Dockerfile)
+es multi-stage (Node compila los assets; la imagen final es PHP 8.3 + Tesseract)
+y el [`entrypoint`](docker/entrypoint.sh) corre migraciones, crea el admin por
+defecto (`ADMIN_EMAIL`/`ADMIN_PASSWORD`) y levanta `php artisan serve` en `$PORT`.
+
+**Variables en Render:** `APP_KEY`, `APP_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`
+(`AI_DRIVER=ocr`, `QUEUE_CONNECTION=sync`, `APP_ENV=production` ya vienen por
+defecto en la imagen). **No** generamos `APP_KEY` dentro del Dockerfile.
+
+**CI/CD:** en cada push a `main`, [GitHub Actions](.github/workflows/ci.yml) corre
+las pruebas y, si pasan, dispara el deploy vía la API de Render y espera a que quede
+`live` (secrets `RENDER_API_KEY` y `RENDER_SERVICE_ID`). Render detrás de su proxy
+TLS: la app confía en `X-Forwarded-Proto` para generar URLs `https`.
+
+> ⚠️ En Render la base **SQLite es efímera** (se borra en cada deploy); por eso el
+> admin se recrea desde env en cada arranque. Para datos persistentes, migrar a
+> MySQL/RDS o un disco persistente.
 
 ## Documentación
 
 El análisis de producto e ingeniería vive en [`docs/`](docs/):
 
-- [`docs/14`](docs/14-running-the-app.md) — **qué está implementado + cómo correrlo** (empieza aquí)
+- [`docs/15`](docs/15-post-mvp-changelog.md) — **cambios post-MVP + estado actual + pendientes** (empieza aquí)
+- [`docs/14`](docs/14-running-the-app.md) — qué está implementado + cómo correrlo
 - [`docs/13`](docs/13-mvp-critique-and-simplification.md) — alcance del MVP lean y diferidos a v2
 - [`docs/07`](docs/07-prd.md) — PRD · [`docs/08`](docs/08-business-rules.md) — reglas de negocio
 - [`docs/09`](docs/09-database-model.md) — modelo de datos · [`docs/10`](docs/10-api-proposal.md) — API
