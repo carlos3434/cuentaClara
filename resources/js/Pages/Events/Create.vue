@@ -158,7 +158,7 @@ function submit() {
                     </template>
                     <img v-else :src="expensePreview" alt="Vista previa del comprobante" class="max-h-48 rounded-lg" />
                 </label>
-                <input id="expense_image" type="file" accept="image/*" capture="environment" class="sr-only" @change="onExpenseFile" />
+                <input id="expense_image" type="file" accept="image/*" class="sr-only" @change="onExpenseFile" />
                 <p v-if="form.errors.expense_image" class="mt-1 text-sm text-red-600">{{ form.errors.expense_image }}</p>
                 <input v-if="form.expense_image" v-model="form.expense_note" type="text" maxlength="200"
                     placeholder="Nota (opcional): ej. Alquiler de cancha"

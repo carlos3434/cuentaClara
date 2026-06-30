@@ -210,7 +210,7 @@ function submit() {
                     </template>
                     <img v-else :src="preview" alt="Vista previa del voucher" class="max-h-56 rounded-lg" />
                 </label>
-                <input id="image" type="file" accept="image/*" capture="environment" class="sr-only" @change="onFile" />
+                <input id="image" type="file" accept="image/*" class="sr-only" @change="onFile" />
                 <p v-if="form.errors.image" class="mt-1 text-sm text-red-600">{{ form.errors.image }}</p>
 
                 <p v-if="analyzing" class="mt-2 text-sm text-slate-500">Revisando la imagen…</p>

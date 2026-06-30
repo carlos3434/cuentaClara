@@ -332,7 +332,7 @@ function reopenEvent() {
                     </template>
                     <img v-else :src="expensePreview" alt="Vista previa" class="max-h-48 rounded-lg" />
                 </label>
-                <input id="expense-image" type="file" accept="image/*" capture="environment" class="sr-only" @change="onExpenseFile" />
+                <input id="expense-image" type="file" accept="image/*" class="sr-only" @change="onExpenseFile" />
                 <p v-if="expenseForm.errors.image" class="text-sm text-red-600">{{ expenseForm.errors.image }}</p>
 
                 <input v-model="expenseForm.note" type="text" maxlength="200" placeholder="Nota (opcional): ej. Alquiler de cancha"
