@@ -1,0 +1,76 @@
+# Render Blueprint para CuentaClara
+# ----------------------------------
+# Despliegue como servicio Docker + Postgres administrado + disco persistente
+# para las imágenes de vouchers. Importa este archivo desde el dashboard de
+# Render (Blueprints → New Blueprint Instance) o haz que Render lo detecte al
+# conectar el repo.
+#
+# Variables marcadas con `sync: false` NO están en el archivo (son secretos o
+# dependen del entorno): Render te las pedirá al crear el blueprint.
+#   - APP_KEY        → genérala con `php artisan key:generate --show` y pégala
+#   - APP_URL        → la URL pública del servicio (https://cuentaclara.onrender.com)
+#   - ADMIN_EMAIL    → correo del admin inicial
+#   - ADMIN_PASSWORD → contraseña del admin inicial
+
+databases:
+  - name: cuentaclara-db
+    databaseName: cuentaclara
+    user: cuentaclara
+    # Render Postgres: 'free' caduca a los ~30 días. Para producción real
+    # sube a un plan pago (p. ej. 'basic-256mb' / 'starter').
+    plan: free
+
+services:
+  - type: web
+    name: cuentaclara
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    branch: main
+    region: oregon            # cámbialo si prefieres otra región
+    # El disco persistente fuerza instancia única (sin escalado horizontal)
+    # y desactiva el zero-downtime deploy. Para escalar, mover vouchers a S3.
+    plan: starter             # los discos requieren un plan pago (no 'free')
+    numInstances: 1
+    healthCheckPath: /up
+    disk:
+      name: receipts
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      # --- App ---------------------------------------------------------
+      - key: APP_KEY
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+
+      # --- Base de datos (Postgres administrado) -----------------------
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_URL
+        fromDatabase:
+          name: cuentaclara-db
+          property: connectionString
+
+      # --- Almacenamiento de vouchers (disco persistente) --------------
+      - key: RECEIPTS_DISK
+        value: persistent
+      - key: RECEIPTS_DISK_ROOT
+        value: /var/data/receipts
+
+      # --- Lectura de comprobantes y revisión --------------------------
+      - key: AI_DRIVER
+        value: ocr
+      - key: QUEUE_CONNECTION
+        value: sync
+
+      # --- Admin inicial (creado idempotentemente en el arranque) ------
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: Admin
