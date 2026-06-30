@@ -1,5 +1,9 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
+
+const appVersion = computed(() => usePage().props.appVersion);
+const currentYear = new Date().getFullYear();
 
 const form = useForm({
     email: '',
@@ -53,5 +57,10 @@ function submit() {
             ¿No tienes cuenta?
             <Link href="/register" class="font-semibold text-teal-700">Crear cuenta</Link>
         </p>
+
+        <footer class="mt-10 text-center text-xs text-slate-400">
+            <p>© {{ currentYear }} CuentaClara — Todos los derechos reservados</p>
+            <p class="mt-1">v{{ appVersion }}</p>
+        </footer>
     </main>
 </template>
