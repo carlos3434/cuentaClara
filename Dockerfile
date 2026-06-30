@@ -51,7 +51,10 @@ ENV APP_ENV=production \
     DB_CONNECTION=sqlite \
     # Single web container: run queued jobs (AI receipt validation) inline.
     # Switch to "database" + a worker if you add a separate worker service.
-    QUEUE_CONNECTION=sync
+    QUEUE_CONNECTION=sync \
+    # This image ships Tesseract, so read real vouchers by default. Without
+    # this the 'fake' reader would fabricate a matching amount in production.
+    AI_DRIVER=ocr
 
 # Install PHP deps first (cached unless composer.json/lock changes).
 COPY composer.json composer.lock ./
