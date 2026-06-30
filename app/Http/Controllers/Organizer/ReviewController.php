@@ -154,6 +154,23 @@ class ReviewController extends Controller
             'decided_by' => DecidedBy::Organizer,
             'decided_at' => now(),
         ]);
+
+        // Data minimization: the voucher image has served its purpose once the
+        // organizer has decided. Delete it; the extracted amount/hash remain.
+        $this->purgeImage($receipt);
+    }
+
+    /**
+     * Delete a receipt's stored image and clear its key (no-op if none).
+     */
+    private function purgeImage(Receipt $receipt): void
+    {
+        if ($receipt->s3_key === null) {
+            return;
+        }
+
+        app(ReceiptStorage::class)->delete($receipt->s3_key);
+        $receipt->update(['s3_key' => null]);
     }
 
     private function authorizeEvent(Event $event): void
@@ -238,7 +255,6 @@ class ReviewController extends Controller
             'date' => $receipt->extracted_date?->toDateString(),
             'method' => $receipt->extracted_method,
             'recipient' => $receipt->extracted_recipient,
-            'operation' => $receipt->extracted_operation,
             'confidence' => $receipt->confidence,
             'explanation' => $receipt->ai_explanation,
             'image_url' => $receipt->s3_key ? route('organizer.receipts.image', [$event, $receipt]) : null,

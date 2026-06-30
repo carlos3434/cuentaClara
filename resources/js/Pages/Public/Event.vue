@@ -229,6 +229,11 @@ function submit() {
                 class="w-full rounded-xl bg-teal-600 px-4 py-3.5 text-base font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:opacity-50">
                 {{ form.processing ? 'Enviando…' : (analyzing ? 'Revisando…' : 'Enviar voucher') }}
             </button>
+
+            <p class="text-center text-xs text-slate-400">
+                Tu comprobante se usa solo para validar tu pago con el organizador y
+                se elimina una vez verificado. No lo compartimos con terceros.
+            </p>
         </form>
     </main>
 </template>

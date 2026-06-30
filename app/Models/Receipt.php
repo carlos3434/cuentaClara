@@ -27,7 +27,7 @@ class Receipt extends Model
         'extracted_date',
         'extracted_method',
         'extracted_recipient',
-        'extracted_operation',
+        'operation_hash',
         'confidence',
         'ai_explanation',
         'ai_raw',
@@ -46,6 +46,22 @@ class Receipt extends Model
         'reason_code' => ReasonCode::class,
         'decided_by' => DecidedBy::class,
     ];
+
+    /**
+     * One-way hash of an operation number, for duplicate detection without
+     * storing the clear value. Normalizes case and punctuation first so the
+     * same operation matches even if OCR reads dots/spaces differently.
+     */
+    public static function hashOperation(?string $operation): ?string
+    {
+        if ($operation === null) {
+            return null;
+        }
+
+        $normalized = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $operation));
+
+        return $normalized === '' ? null : hash('sha256', $normalized);
+    }
 
     public function event(): BelongsTo
     {

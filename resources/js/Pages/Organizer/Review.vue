@@ -213,7 +213,6 @@ function reopenEvent() {
                         <div class="flex justify-between"><dt class="text-slate-500">Fecha</dt><dd class="font-medium">{{ r.date ?? '—' }}</dd></div>
                         <div class="flex justify-between"><dt class="text-slate-500">A</dt><dd class="font-medium">{{ r.recipient ?? '—' }}</dd></div>
                         <div class="flex justify-between"><dt class="text-slate-500">Método</dt><dd class="font-medium">{{ methodLabels[r.method] ?? r.method ?? '—' }}</dd></div>
-                        <div v-if="r.operation" class="flex justify-between"><dt class="text-slate-500">N° de operación</dt><dd class="font-medium">{{ r.operation }}</dd></div>
                         <div v-if="r.confidence != null" class="flex justify-between"><dt class="text-slate-500">Confianza OCR</dt><dd class="font-medium">{{ Math.round(r.confidence * 100) }}%</dd></div>
                     </dl>
 
@@ -287,7 +286,6 @@ function reopenEvent() {
                             <div class="flex justify-between"><dt class="text-slate-500">Fecha</dt><dd class="font-medium">{{ p.receipt.date ?? '—' }}</dd></div>
                             <div class="flex justify-between"><dt class="text-slate-500">A</dt><dd class="font-medium">{{ p.receipt.recipient ?? '—' }}</dd></div>
                             <div class="flex justify-between"><dt class="text-slate-500">Método</dt><dd class="font-medium">{{ methodLabels[p.receipt.method] ?? p.receipt.method ?? '—' }}</dd></div>
-                            <div v-if="p.receipt.operation" class="flex justify-between"><dt class="text-slate-500">N° de operación</dt><dd class="font-medium">{{ p.receipt.operation }}</dd></div>
                             <div v-if="p.receipt.confidence != null" class="flex justify-between"><dt class="text-slate-500">Confianza OCR</dt><dd class="font-medium">{{ Math.round(p.receipt.confidence * 100) }}%</dd></div>
                         </dl>
                         <p v-if="p.status === 'submitted' || p.status === 'review'" class="mt-3 text-center text-xs text-slate-500">

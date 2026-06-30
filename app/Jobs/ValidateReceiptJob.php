@@ -46,14 +46,18 @@ class ValidateReceiptJob implements ShouldQueue
             'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ]);
 
-        // Always store what was read — it assists the organizer's review.
+        // Always store what was read — it assists the organizer's review. The
+        // operation number is stored only as a hash (duplicate detection
+        // without keeping the clear value).
+        $operationHash = Receipt::hashOperation($extraction->operation);
+
         $update = [
             'extracted_amount_cents' => $extraction->amountCents,
             'extracted_currency' => $extraction->currency,
             'extracted_date' => $extraction->date,
             'extracted_method' => $extraction->method,
             'extracted_recipient' => $extraction->recipient,
-            'extracted_operation' => $extraction->operation,
+            'operation_hash' => $operationHash,
             'confidence' => $extraction->confidence,
             'ai_explanation' => $extraction->explanation,
             'ai_raw' => $extraction->raw,
@@ -62,14 +66,14 @@ class ValidateReceiptJob implements ShouldQueue
         // A voucher whose operation number was already uploaded for this event
         // is a likely duplicate — surface it for review and never auto-approve,
         // regardless of mode (it's a fraud/mistake signal, not a money verdict).
-        $duplicateOf = $this->duplicateOf($receipt, $extraction->operation);
+        $duplicateOf = $this->duplicateOf($receipt, $operationHash);
 
         $reviewMode = Setting::get('review_mode', config('cuentaclara.review_mode'));
 
         if ($duplicateOf) {
             $update['status'] = ReceiptStatus::NeedsReview;
             $update['reason_code'] = ReasonCode::DuplicateOperation;
-            $update['ai_explanation'] = "Mismo N° de operación ({$extraction->operation}) que el pago de "
+            $update['ai_explanation'] = 'Mismo N° de operación que el pago de '
                 .($duplicateOf->participant?->name ?? 'otro participante').'.';
         } elseif ($reviewMode === 'auto') {
             // Only act on the verdict in 'auto' mode. In 'manual' mode the AI
@@ -85,18 +89,18 @@ class ValidateReceiptJob implements ShouldQueue
 
     /**
      * Another non-rejected receipt in the same event sharing this operation
-     * number, if any. Null operation numbers never match.
+     * hash, if any. A null hash (no readable operation number) never matches.
      */
-    private function duplicateOf(Receipt $receipt, ?string $operation): ?Receipt
+    private function duplicateOf(Receipt $receipt, ?string $operationHash): ?Receipt
     {
-        if ($operation === null || trim($operation) === '') {
+        if ($operationHash === null) {
             return null;
         }
 
         return Receipt::query()
             ->where('event_id', $receipt->event_id)
             ->where('id', '!=', $receipt->id)
-            ->where('extracted_operation', $operation)
+            ->where('operation_hash', $operationHash)
             ->where('status', '!=', ReceiptStatus::Rejected->value)
             ->with('participant')
             ->first();

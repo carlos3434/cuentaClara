@@ -52,7 +52,9 @@ class ReceiptTextParser
             confidence: round($confidence, 2),
             explanation: '[ocr] '.($isReceipt ? 'Comprobante leído por OCR.' : 'No se reconoció como comprobante.'),
             operation: $operation,
-            raw: ['driver' => 'ocr', 'text' => $text],
+            // Do not persist the raw OCR text — it's a full copy of the
+            // voucher's sensitive data. Keep only non-sensitive metadata.
+            raw: ['driver' => 'ocr'],
         );
     }
 

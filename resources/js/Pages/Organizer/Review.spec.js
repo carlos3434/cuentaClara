@@ -73,15 +73,15 @@ describe('Organizer/Review', () => {
             props: makeProps({
                 review: [{
                     id: 5, participant: 'Beto', status: 'needs_review', reason_code: 'duplicate_operation',
-                    amount_cents: 4000, date: '2026-06-24', method: 'yape', recipient: 'Caro', operation: '2287273',
-                    confidence: 0.95, explanation: 'Mismo N° de operación (2287273) que el pago de Ana.',
+                    amount_cents: 4000, date: '2026-06-24', method: 'yape', recipient: 'Caro',
+                    confidence: 0.95, explanation: 'Mismo N° de operación que el pago de Ana.',
                     image_url: 'http://x/img/5', created_at: '2026-06-24T00:00:00Z',
                 }],
             }),
         });
 
         expect(w.text()).toContain('Posible duplicado');
-        expect(w.text()).toContain('Mismo N° de operación (2287273) que el pago de Ana.');
+        expect(w.text()).toContain('Mismo N° de operación que el pago de Ana.');
     });
 
     it('builds a group WhatsApp reminder with the share and public url', () => {

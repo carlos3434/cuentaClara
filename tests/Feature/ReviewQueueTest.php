@@ -233,6 +233,48 @@ class ReviewQueueTest extends TestCase
         ]);
     }
 
+    public function test_resolving_a_payment_deletes_the_voucher_image(): void
+    {
+        $disk = config('cuentaclara.receipts_disk');
+        Storage::fake($disk);
+
+        $owner = User::factory()->create();
+        $event = Event::factory()->create(['user_id' => $owner->id]);
+        $participant = Participant::factory()->for($event)->create();
+        Storage::disk($disk)->put('events/1/receipts/v.jpg', 'binary');
+        $receipt = Receipt::factory()->for($event)->for($participant)
+            ->create(['status' => 'needs_review', 's3_key' => 'events/1/receipts/v.jpg']);
+
+        $this->actingAs($owner)
+            ->post("/events/{$event->slug}/receipts/{$receipt->id}/approve")
+            ->assertRedirect();
+
+        $receipt->refresh();
+        $this->assertNull($receipt->s3_key);                                // key cleared
+        $this->assertSame('validated', $receipt->status->value);            // still resolved
+        Storage::disk($disk)->assertMissing('events/1/receipts/v.jpg');     // file deleted
+    }
+
+    public function test_rejecting_a_payment_also_deletes_the_voucher_image(): void
+    {
+        $disk = config('cuentaclara.receipts_disk');
+        Storage::fake($disk);
+
+        $owner = User::factory()->create();
+        $event = Event::factory()->create(['user_id' => $owner->id]);
+        $participant = Participant::factory()->for($event)->create();
+        Storage::disk($disk)->put('events/1/receipts/r.jpg', 'binary');
+        $receipt = Receipt::factory()->for($event)->for($participant)
+            ->create(['status' => 'needs_review', 's3_key' => 'events/1/receipts/r.jpg']);
+
+        $this->actingAs($owner)
+            ->post("/events/{$event->slug}/receipts/{$receipt->id}/reject")
+            ->assertRedirect();
+
+        $this->assertNull($receipt->refresh()->s3_key);
+        Storage::disk($disk)->assertMissing('events/1/receipts/r.jpg');
+    }
+
     public function test_cannot_act_on_a_receipt_from_another_event(): void
     {
         $owner = User::factory()->create();

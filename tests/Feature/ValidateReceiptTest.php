@@ -93,7 +93,7 @@ class ValidateReceiptTest extends TestCase
 
         $firstParticipant = Participant::factory()->for($event)->create(['name' => 'Ana']);
         Receipt::factory()->for($event)->for($firstParticipant)
-            ->create(['status' => 'validated', 'extracted_operation' => '2287273']);
+            ->create(['status' => 'validated', 'operation_hash' => Receipt::hashOperation('2287273')]);
 
         $second = Receipt::factory()->for($event)
             ->for(Participant::factory()->for($event)->create(['name' => 'Beto']))
@@ -109,12 +109,33 @@ class ValidateReceiptTest extends TestCase
         $this->assertStringContainsString('Ana', $second->ai_explanation);
     }
 
+    public function test_duplicate_detection_ignores_punctuation_in_the_operation_number(): void
+    {
+        config(['cuentaclara.review_mode' => 'auto']);
+        $event = Event::factory()->create(['share_cents' => 4000, 'total_cents' => 40000, 'headcount' => 10]);
+
+        Receipt::factory()->for($event)->for(Participant::factory()->for($event)->create(['name' => 'Ana']))
+            ->create(['status' => 'validated', 'operation_hash' => Receipt::hashOperation('784.444.018.0481')]);
+
+        $second = Receipt::factory()->for($event)
+            ->for(Participant::factory()->for($event)->create())
+            ->create(['status' => 'submitted']);
+
+        // Same digits, different formatting (spaces instead of dots).
+        $this->bindVision($this->extractionWithAmount(4000, operation: '784 444 018 0481'));
+        (new ValidateReceiptJob($second))->handle(app(ReceiptVision::class), new ReceiptRuleEngine());
+
+        $second->refresh();
+        $this->assertSame('needs_review', $second->status->value);
+        $this->assertSame('duplicate_operation', $second->reason_code->value);
+    }
+
     public function test_the_same_operation_in_a_different_event_is_not_a_duplicate(): void
     {
         config(['cuentaclara.review_mode' => 'auto']);
         $other = Event::factory()->create();
         Receipt::factory()->for($other)->for(Participant::factory()->for($other))
-            ->create(['status' => 'validated', 'extracted_operation' => '2287273']);
+            ->create(['status' => 'validated', 'operation_hash' => Receipt::hashOperation('2287273')]);
 
         $receipt = $this->makeSubmittedReceipt(shareCents: 4000);
         $this->bindVision($this->extractionWithAmount(4000, operation: '2287273'));
@@ -129,7 +150,7 @@ class ValidateReceiptTest extends TestCase
         config(['cuentaclara.review_mode' => 'auto']);
         $event = Event::factory()->create(['share_cents' => 4000, 'total_cents' => 40000, 'headcount' => 10]);
         Receipt::factory()->for($event)->for(Participant::factory()->for($event))
-            ->create(['status' => 'validated', 'extracted_operation' => null]);
+            ->create(['status' => 'validated', 'operation_hash' => null]);
 
         $receipt = Receipt::factory()->for($event)->for(Participant::factory()->for($event))
             ->create(['status' => 'submitted']);
