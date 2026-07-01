@@ -36,7 +36,8 @@ seguimiento y la validación; **no reemplaza WhatsApp** (ahí se comparte el lin
 | **Cola de revisión** | `/events/{slug}/review` — **"Por revisar"** lista solo los pendientes; **"Participantes"** lista los resueltos (**Aprobado** / **Rechazado**) con su estado al costado. Aprobar / rechazar / marcar efectivo |
 | **Totales reales** | "Cobrado" suma los **montos reales** de los pagos aprobados (lo leído del voucher; efectivo cae al share), y "Falta = total − cobrado" |
 | **Detección de duplicados** | Si dos participantes suben un voucher con el mismo N° de operación → se marca "Posible duplicado" y nunca se auto-aprueba |
-| **Rol Administrador** | Panel `/admin`: gestión de organizadores (crear / activar-desactivar), pagos por evento, e interruptor global manual/automático |
+| **Editar evento (por rol)** | El **organizador** edita fecha del evento, fecha límite y monto de sus eventos; el **admin** edita **todos** los campos (incluido el enlace) de cualquier evento. Una sola pantalla según el rol; la lista de campos permitidos se **fuerza en el servidor** |
+| **Rol Administrador** | Panel `/admin`: gestión de organizadores (crear / activar-desactivar), pagos por evento, edición de cualquier evento, e interruptor global manual/automático |
 | **Recordatorios** | Links `wa.me` (al grupo y por participante) |
 | **Comprobante del gasto** | Evidencia del costo real del organizador (solo almacenamiento), al crear el evento o desde la revisión |
 | **Cerrar / reabrir evento** | Bloquea nuevas subidas cuando está cerrado |
