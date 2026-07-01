@@ -39,6 +39,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/events/create', [OrganizerEventController::class, 'create'])->name('events.create');
         Route::post('/events', [OrganizerEventController::class, 'store'])->name('events.store');
         Route::get('/events/{event}/created', [OrganizerEventController::class, 'created'])->name('events.created');
+        Route::get('/events/{event}/edit', [OrganizerEventController::class, 'edit'])->name('events.edit');
+        Route::put('/events/{event}', [OrganizerEventController::class, 'update'])->name('events.update');
         Route::post('/events/{event}/close', [OrganizerEventController::class, 'close'])->name('events.close');
         Route::post('/events/{event}/reopen', [OrganizerEventController::class, 'reopen'])->name('events.reopen');
 

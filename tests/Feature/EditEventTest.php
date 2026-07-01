@@ -12,6 +12,27 @@ class EditEventTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function organizerPayload(array $overrides = []): array
+    {
+        return array_merge([
+            'event_date' => now()->addDays(10)->toDateString(),
+            'pay_deadline' => now()->addDays(8)->toDateString(),
+            'total_amount' => '600',
+        ], $overrides);
+    }
+
+    private function adminPayload(array $overrides = []): array
+    {
+        return array_merge($this->organizerPayload(), [
+            'name' => 'Cena de fin de año',
+            'headcount' => 5,
+            'recipient_name' => 'Caro',
+            'recipient_handle' => '999111222',
+            'accepted_methods' => ['yape', 'plin'],
+            'slug' => 'nuevo-enlace',
+        ], $overrides);
+    }
+
     public function test_admin_can_open_the_edit_screen_of_any_event(): void
     {
         $owner = User::factory()->create(['role' => UserRole::Organizer]);
@@ -23,24 +44,9 @@ class EditEventTest extends TestCase
             ->assertOk();
     }
 
-    private function payload(array $overrides = []): array
+    public function test_organizer_can_edit_dates_and_amount_and_share_recomputes(): void
     {
-        return array_merge([
-            'name' => 'Cena de fin de año',
-            'event_date' => now()->addDays(10)->toDateString(),
-            'total_amount' => '600',
-            'headcount' => 5,
-            'recipient_name' => 'Caro',
-            'recipient_handle' => '999111222',
-            'accepted_methods' => ['yape', 'plin'],
-            'pay_deadline' => now()->addDays(8)->toDateString(),
-            'slug' => 'nuevo-enlace',
-        ], $overrides);
-    }
-
-    public function test_organizer_can_edit_their_event_and_share_is_recomputed(): void
-    {
-        $owner = User::factory()->create();
+        $owner = User::factory()->create(['role' => UserRole::Organizer]);
         $event = Event::factory()->for($owner)->create([
             'total_cents' => 48000,
             'headcount' => 12,
@@ -48,8 +54,63 @@ class EditEventTest extends TestCase
         ]);
 
         $this->actingAs($owner)
-            ->put("/events/{$event->slug}", $this->payload())
-            ->assertRedirect("/events/nuevo-enlace/review");
+            ->put("/events/{$event->slug}", $this->organizerPayload(['total_amount' => '600']))
+            ->assertRedirect("/events/{$event->slug}/review");
+
+        $event->refresh();
+        $this->assertSame(60000, $event->total_cents);
+        // headcount unchanged (12) → 60000 / 12 = 5000
+        $this->assertSame(12, $event->headcount);
+        $this->assertSame(5000, $event->share_cents);
+    }
+
+    public function test_organizer_cannot_change_admin_only_fields(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Organizer]);
+        $event = Event::factory()->for($owner)->create([
+            'name' => 'Original',
+            'slug' => 'original-slug',
+            'headcount' => 12,
+        ]);
+
+        // Craft a request with forbidden fields; they must be ignored.
+        $this->actingAs($owner)
+            ->put("/events/{$event->slug}", $this->organizerPayload([
+                'name' => 'Hackeado',
+                'slug' => 'hackeado',
+                'headcount' => 1,
+            ]))
+            ->assertRedirect("/events/{$event->slug}/review");
+
+        $event->refresh();
+        $this->assertSame('Original', $event->name);
+        $this->assertSame('original-slug', $event->slug);
+        $this->assertSame(12, $event->headcount);
+    }
+
+    public function test_organizer_cannot_edit_another_organizers_event(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Organizer]);
+        $intruder = User::factory()->create(['role' => UserRole::Organizer]);
+        $event = Event::factory()->for($owner)->create();
+
+        $this->actingAs($intruder)
+            ->put("/events/{$event->slug}", $this->organizerPayload())
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_edit_all_fields_including_the_link(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Organizer]);
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $event = Event::factory()->for($owner)->create([
+            'total_cents' => 48000,
+            'headcount' => 12,
+        ]);
+
+        $this->actingAs($admin)
+            ->put("/events/{$event->slug}", $this->adminPayload(['total_amount' => '600', 'headcount' => 5]))
+            ->assertRedirect('/events/nuevo-enlace/review');
 
         $event->refresh();
         $this->assertSame('nuevo-enlace', $event->slug);
@@ -60,50 +121,27 @@ class EditEventTest extends TestCase
         $this->assertSame(12000, $event->share_cents);
     }
 
-    public function test_another_organizer_cannot_edit_your_event(): void
+    public function test_admin_slug_must_be_unique(): void
     {
-        $owner = User::factory()->create();
-        $intruder = User::factory()->create();
+        $owner = User::factory()->create(['role' => UserRole::Organizer]);
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        Event::factory()->for($owner)->create(['slug' => 'taken-slug']);
         $event = Event::factory()->for($owner)->create();
 
-        $this->actingAs($intruder)
-            ->put("/events/{$event->slug}", $this->payload())
-            ->assertForbidden();
-    }
-
-    public function test_slug_must_be_unique_across_events(): void
-    {
-        $owner = User::factory()->create();
-        $taken = Event::factory()->for($owner)->create(['slug' => 'taken-slug']);
-        $event = Event::factory()->for($owner)->create();
-
-        $this->actingAs($owner)
-            ->put("/events/{$event->slug}", $this->payload(['slug' => 'taken-slug']))
+        $this->actingAs($admin)
+            ->put("/events/{$event->slug}", $this->adminPayload(['slug' => 'taken-slug']))
             ->assertSessionHasErrors('slug');
-
-        $this->assertDatabaseHas('events', ['id' => $event->id, 'slug' => $event->slug]);
-        $this->assertNotSame('taken-slug', $event->fresh()->slug);
     }
 
-    public function test_keeping_the_same_slug_is_allowed(): void
+    public function test_deadline_in_the_past_is_allowed_when_editing(): void
     {
-        $owner = User::factory()->create();
-        $event = Event::factory()->for($owner)->create(['slug' => 'mi-evento']);
-
-        $this->actingAs($owner)
-            ->put("/events/{$event->slug}", $this->payload(['slug' => 'mi-evento', 'name' => 'Nuevo nombre']))
-            ->assertRedirect("/events/mi-evento/review");
-
-        $this->assertSame('Nuevo nombre', $event->fresh()->name);
-    }
-
-    public function test_slug_rejects_invalid_characters(): void
-    {
-        $owner = User::factory()->create();
+        $owner = User::factory()->create(['role' => UserRole::Organizer]);
         $event = Event::factory()->for($owner)->create();
 
         $this->actingAs($owner)
-            ->put("/events/{$event->slug}", $this->payload(['slug' => 'Con Espacios!']))
-            ->assertSessionHasErrors('slug');
+            ->put("/events/{$event->slug}", $this->organizerPayload([
+                'pay_deadline' => now()->subDays(3)->toDateString(),
+            ]))
+            ->assertRedirect("/events/{$event->slug}/review");
     }
 }

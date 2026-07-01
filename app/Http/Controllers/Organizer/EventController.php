@@ -6,6 +6,7 @@ use App\Actions\Events\StoreExpenseReceipt;
 use App\Enums\EventStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEventRequest;
+use App\Http\Requests\UpdateEventRequest;
 use App\Models\Event;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
@@ -110,6 +111,72 @@ class EventController extends Controller
         }
 
         return redirect()->route('organizer.events.created', $event);
+    }
+
+    /**
+     * Edit form, prefilled with the event's current values. `can_edit_all`
+     * tells the view whether to show admin-only fields.
+     */
+    public function edit(Request $request, Event $event): Response
+    {
+        $this->authorize('manage', $event);
+
+        return Inertia::render('Events/Edit', [
+            'event' => [
+                'slug' => $event->slug,
+                'name' => $event->name,
+                'event_date' => $event->event_date->toDateString(),
+                // Amounts are stored in cents; the form edits soles.
+                'total_amount' => number_format($event->total_cents / 100, 2, '.', ''),
+                'headcount' => $event->headcount,
+                'recipient_name' => $event->recipient_name,
+                'recipient_handle' => $event->recipient_handle,
+                'accepted_methods' => $event->accepted_methods,
+                'pay_deadline' => $event->pay_deadline->toDateString(),
+                'public_url' => route('public.events.show', $event),
+            ],
+            'can_edit_all' => $request->user()->isAdmin(),
+        ]);
+    }
+
+    /**
+     * Persist edits. Only the keys the role may edit reach here (validated()
+     * already dropped the rest). Changing total/headcount recomputes the
+     * per-person share; already-approved payments keep their real amount.
+     */
+    public function update(UpdateEventRequest $request, Event $event): RedirectResponse
+    {
+        $data = $request->validated();
+
+        // Direct-copy fields present for this role. Normalize the few that need it.
+        $changes = collect($data)->except(['total_amount', 'headcount'])->all();
+        if (isset($changes['accepted_methods'])) {
+            $changes['accepted_methods'] = array_values($changes['accepted_methods']);
+        }
+        if (array_key_exists('recipient_handle', $data)) {
+            $changes['recipient_handle'] = $data['recipient_handle'] ?? null;
+        }
+
+        // Amount/headcount → recompute share. Missing keys keep current values
+        // (an organizer can't change headcount).
+        $totalCents = isset($data['total_amount'])
+            ? (int) round($data['total_amount'] * 100)
+            : $event->total_cents;
+        $headcount = isset($data['headcount']) ? (int) $data['headcount'] : $event->headcount;
+
+        if (isset($data['total_amount'])) {
+            $changes['total_cents'] = $totalCents;
+        }
+        if (isset($data['headcount'])) {
+            $changes['headcount'] = $headcount;
+        }
+        if (isset($data['total_amount']) || isset($data['headcount'])) {
+            $changes['share_cents'] = Event::shareFor($totalCents, $headcount);
+        }
+
+        $event->update($changes);
+
+        return redirect()->route('organizer.events.review', $event);
     }
 
     /**
