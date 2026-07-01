@@ -48,6 +48,10 @@
 - **"Participantes"** = solo pagos **resueltos**: **Aprobado** (validated/cash) o
   **Rechazado**, con el badge de estado al costado. Un pendiente ya **no** aparece
   en ambas; al resolverlo pasa a "Participantes".
+- **Fix**: al aprobar/rechazar/marcar efectivo, la lista de "Participantes" se
+  **actualiza al instante** (antes solo salía de "Por revisar" y no reaparecía sin
+  recargar). `Review.vue` re-sincroniza la lista con un `watch` sobre la prop y las
+  acciones hacen recarga parcial de `['review','participants','summary']`.
 
 ## 4. Lectura OCR de comprobantes (Tesseract)
 
@@ -84,6 +88,26 @@
   con fallback al config.
 - Comando **`php artisan admin:make {email} --name= --password=`** (promueve o crea).
 - Vistas: `resources/js/Pages/Admin/Dashboard.vue`, `Users.vue`.
+- El admin puede **editar cualquier evento** (todos los campos) desde el enlace
+  "Editar" del dashboard — ver §11.
+
+## 11. Edición de eventos por rol
+
+- **Organizador:** edita **fecha del evento, fecha límite y monto** de sus propios
+  eventos (el comprobante del gasto se sigue gestionando en la pantalla de revisión).
+- **Admin:** edita **todos** los campos de **cualquier** evento: nombre, fechas,
+  monto, N° de personas, destinatario, métodos y el **enlace/slug** (con aviso de
+  que el link anterior deja de funcionar).
+- **Seguridad — whitelist en el servidor**: `UpdateEventRequest::rules()` es
+  condicional al rol; como `validated()` devuelve solo las claves con regla, un
+  organizador que fuerce campos extra (slug/nombre/personas) los ve **ignorados en
+  silencio**, nunca aplicados. El frontend (`can_edit_all`) es solo UX.
+- `EventPolicy@manage` ampliada a **admin o dueño** (habilita también revisar/cerrar
+  cualquier evento al admin — oversight de plataforma).
+- Al cambiar monto o N° de personas se **recalcula la cuota** (`share_cents`); los
+  pagos ya aprobados conservan su monto real, así "Cobrado" no se altera.
+- Rutas: `GET /events/{event}/edit`, `PUT /events/{event}`. Vista única
+  `resources/js/Pages/Events/Edit.vue` (render según `can_edit_all`).
 
 ## 8. Sensibilidad de datos (minimización)
 
@@ -104,16 +128,23 @@ Decisiones tomadas (datos de pago = PII financiera, Ley 29733):
 
 ## 9. Estado de pruebas
 
-- **Backend:** 142 tests (PHPUnit, SQLite en memoria). `php artisan test`.
-- **Frontend:** 53 tests (Vitest). `npm run test:js`. Cobertura líneas ~97.9 %.
+- **Backend:** 151 tests (PHPUnit, SQLite en memoria). `php artisan test`.
+- **Frontend:** 57 tests (Vitest). `npm run test:js`. Nota: 2 tests de
+  `Login.spec.js` fallan por un mock de `usePage` faltante — pendiente menor y
+  **no relacionado** con estas features (el resto pasa).
 - `phpunit.xml` fija `AI_DRIVER=fake` y `REVIEW_MODE=manual` para que los tests
   sean deterministas sin depender del `.env` local.
 
 ## 10. Persistencia en producción (Postgres + disco de Render)
 
 El filesystem de Render es **efímero**: sin esto, cada deploy borraba la BD y las
-imágenes subidas. Dos piezas, ambas soportadas ya en código (falta configurarlas
-en el dashboard de Render):
+imágenes subidas. Dos piezas, soportadas en código y **ya configuradas en Render**
+(Postgres administrado + Persistent Disk montado y verificado):
+
+- **Blueprint versionado**: `render.yaml` en la raíz describe el web service Docker,
+  el Postgres (`cuentaclara-db`, con `DB_URL` inyectado vía `fromDatabase`) y el
+  disco `receipts` (mount `/var/data`). Secrets (`APP_KEY`, `APP_URL`,
+  `ADMIN_*`) quedan como `sync:false`. Sirve como fuente de verdad reproducible.
 
 - **Base de datos → Postgres administrado.** La imagen trae `pdo_pgsql`. En Render:
   `DB_CONNECTION=pgsql` + `DB_URL` (Internal Connection String del Postgres) — o las
@@ -140,18 +171,17 @@ en el dashboard de Render):
 
 ## Pendientes / próximos pasos (para el fin de semana)
 
-1. **Configurar persistencia en Render** (código ya listo, ver sección 10):
-   crear el **Postgres** administrado y setear `DB_CONNECTION=pgsql` + `DB_URL`;
-   adjuntar un **Persistent Disk** y setear `RECEIPTS_DISK=persistent` +
-   `RECEIPTS_DISK_ROOT=/var/data/receipts`.
-2. **Cargar en Render** las env: `APP_KEY`, `APP_URL`, `ADMIN_EMAIL`,
-   `ADMIN_PASSWORD`, `APP_VERSION`; y los secrets de CI `RENDER_API_KEY` /
-   `RENDER_SERVICE_ID`. Dejar `REVIEW_MODE=manual` en prod.
-3. **Validación de fecha** del pago contra el rango válido del evento (marcar
+1. ✅ **Persistencia en Render configurada** (ver §10): Postgres administrado
+   (`DB_CONNECTION=pgsql` + `DB_URL`) y Persistent Disk montado en `/var/data`
+   (`RECEIPTS_DISK=persistent`, `RECEIPTS_DISK_ROOT=/var/data/receipts`), verificado.
+2. **Validación de fecha** del pago contra el rango válido del evento (marcar
    fuera de rango → revisión).
-4. **Export CSV** de pagos resueltos para el organizador.
-5. (Opcional) **Cifrado en reposo** + retención configurable.
-6. (Opcional) **Guardrail**: que el driver `fake` no pueda usarse en producción.
+3. **Export CSV** de pagos resueltos para el organizador.
+4. **Bitácora de cambios (audit log)** de ediciones de evento — relevante ahora que
+   el admin puede mutar cualquier evento (ver §11).
+5. **Fix menor**: mock de `usePage` en `Login.spec.js` (2 tests en rojo, ver §9).
+6. (Opcional) **Cifrado en reposo** + retención configurable.
+7. (Opcional) **Guardrail**: que el driver `fake` no pueda usarse en producción.
 
 ## Notas de operación
 
