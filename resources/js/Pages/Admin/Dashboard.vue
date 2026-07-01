@@ -87,7 +87,10 @@ function logout() {
                 <li v-for="e in events" :key="e.id" class="px-4 py-3">
                     <div class="flex items-center justify-between gap-2">
                         <span class="min-w-0 flex-1 truncate font-medium">{{ e.name }}</span>
-                        <span class="shrink-0 text-xs text-slate-400">{{ statusLabels[e.status] ?? e.status }}</span>
+                        <div class="flex shrink-0 items-center gap-3">
+                            <span class="text-xs text-slate-400">{{ statusLabels[e.status] ?? e.status }}</span>
+                            <Link :href="`/events/${e.slug}/edit`" class="text-sm font-semibold text-teal-700">Editar</Link>
+                        </div>
                     </div>
                     <p class="text-sm text-slate-500">Organizador: {{ e.organizer ?? '—' }}</p>
                     <div class="mt-1 flex items-center justify-between text-sm">

@@ -15,7 +15,7 @@ function makeProps(overrides = {}) {
         review_mode: 'manual',
         totals: { events: 1, organizers: 2, shown: 1 },
         events: [
-            { id: 1, name: 'BBQ Caro', organizer: 'Caro', status: 'active', headcount: 12, paid_count: 3, collected_cents: 12000, total_cents: 48000 },
+            { id: 1, slug: 'bbq-caro', name: 'BBQ Caro', organizer: 'Caro', status: 'active', headcount: 12, paid_count: 3, collected_cents: 12000, total_cents: 48000 },
         ],
         ...overrides,
     };
@@ -46,5 +46,13 @@ describe('Admin/Dashboard', () => {
         await w.findAll('button').find((b) => b.text() === 'Automática').trigger('click');
 
         expect(h.post).not.toHaveBeenCalled();
+    });
+
+    it('links each event to its edit screen', () => {
+        const w = mount(Dashboard, { props: makeProps() });
+
+        const link = w.findAll('a').find((a) => a.text() === 'Editar');
+        expect(link).toBeTruthy();
+        expect(link.attributes('href')).toBe('/events/bbq-caro/edit');
     });
 });
