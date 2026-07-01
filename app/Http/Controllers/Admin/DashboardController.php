@@ -41,6 +41,7 @@ class DashboardController extends Controller
             ],
             'events' => $events->map(fn (Event $e) => [
                 'id' => $e->id,
+                'slug' => $e->slug,
                 'name' => $e->name,
                 'organizer' => $e->user?->name,
                 'status' => $e->status,
