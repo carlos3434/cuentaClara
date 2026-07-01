@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import axios from 'axios';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import Icon from '../../Components/Icon.vue';
@@ -17,6 +17,18 @@ const props = defineProps({
 const participantItems = ref([...props.participants.data]);
 const participantsNextPage = ref(props.participants.next_page);
 const loadingParticipants = ref(false);
+
+// Tras aprobar / rechazar / marcar efectivo, el servidor reenvía `participants`
+// con la lista ya actualizada. El ref local sólo se inicializa una vez, así que
+// hay que re-sincronizarlo cuando la prop cambia (si no, el participante recién
+// aprobado nunca aparece). Volvemos a la primera página; "Ver más" recarga el resto.
+watch(
+    () => props.participants,
+    (fresh) => {
+        participantItems.value = [...fresh.data];
+        participantsNextPage.value = fresh.next_page;
+    },
+);
 
 async function loadMoreParticipants() {
     if (!participantsNextPage.value || loadingParticipants.value) return;
@@ -81,14 +93,17 @@ const progress = computed(() =>
         : 0,
 );
 
+// Sólo refrescamos lo que cambia con una decisión: la cola, el roster y los totales.
+const decisionReload = { preserveScroll: true, only: ['review', 'participants', 'summary'] };
+
 function approve(r) {
-    router.post(`/events/${props.event.slug}/receipts/${r.id}/approve`, {}, { preserveScroll: true });
+    router.post(`/events/${props.event.slug}/receipts/${r.id}/approve`, {}, decisionReload);
 }
 function reject(r) {
-    router.post(`/events/${props.event.slug}/receipts/${r.id}/reject`, {}, { preserveScroll: true });
+    router.post(`/events/${props.event.slug}/receipts/${r.id}/reject`, {}, decisionReload);
 }
 function markCash(p) {
-    router.post(`/events/${props.event.slug}/participants/${p.id}/cash`, {}, { preserveScroll: true });
+    router.post(`/events/${props.event.slug}/participants/${p.id}/cash`, {}, decisionReload);
 }
 
 // Organizer's own expense receipt (store-only)
@@ -135,7 +150,10 @@ function reopenEvent() {
     <main class="mx-auto flex min-h-full max-w-md flex-col px-4 pb-10 pt-6">
         <div class="mb-4 flex items-center justify-between">
             <Link href="/events" class="text-sm font-medium text-slate-500">← Mis eventos</Link>
-            <Link :href="share_url" class="text-sm font-semibold text-teal-700">Compartir link</Link>
+            <div class="flex items-center gap-4">
+                <Link :href="`/events/${event.slug}/edit`" class="text-sm font-semibold text-slate-600">Editar</Link>
+                <Link :href="share_url" class="text-sm font-semibold text-teal-700">Compartir link</Link>
+            </div>
         </div>
 
         <header class="mb-5 flex items-start justify-between gap-3">
