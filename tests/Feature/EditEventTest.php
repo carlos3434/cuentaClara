@@ -144,4 +144,33 @@ class EditEventTest extends TestCase
             ]))
             ->assertRedirect("/events/{$event->slug}/review");
     }
+
+    public function test_admin_can_keep_the_same_slug(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Organizer]);
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $event = Event::factory()->for($owner)->create(['slug' => 'mismo-slug']);
+
+        $this->actingAs($admin)
+            ->put("/events/{$event->slug}", $this->adminPayload([
+                'slug' => 'mismo-slug',
+                'name' => 'Nombre actualizado',
+            ]))
+            ->assertRedirect('/events/mismo-slug/review');
+
+        $event->refresh();
+        $this->assertSame('mismo-slug', $event->slug);
+        $this->assertSame('Nombre actualizado', $event->name);
+    }
+
+    public function test_admin_slug_rejects_invalid_characters(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Organizer]);
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $event = Event::factory()->for($owner)->create();
+
+        $this->actingAs($admin)
+            ->put("/events/{$event->slug}", $this->adminPayload(['slug' => 'Bad_Slug!']))
+            ->assertSessionHasErrors('slug');
+    }
 }
